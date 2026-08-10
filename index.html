@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#173a2b" />
+  <meta name="description" content="A private, local-first poo tracker you can install as an app." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css?v=2" />
+  <title>Log My Log</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">PRIVATE • LOCAL-FIRST</div>
+        <h1>Log My Log</h1>
+      </div>
+      <button id="installBtn" class="ghost-btn" hidden>Install app</button>
+    </header>
+
+    <main>
+      <section id="screen-home" class="screen active" aria-labelledby="homeTitle">
+        <div class="hero card">
+          <div>
+            <p class="kicker">Today's business</p>
+            <h2 id="homeTitle">How are things moving?</h2>
+            <p class="muted">Tap once, log the essentials, move on with your day.</p>
+          </div>
+          <button id="quickLogBtn" class="primary-btn big">＋ Log a poo</button>
+        </div>
+
+        <div class="stats-grid" id="homeStats"></div>
+
+        <div class="home-grid">
+          <section class="card recent-card">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Recent activity</p>
+                <h3>Your latest logs</h3>
+              </div>
+              <button class="text-btn" data-nav="history">View all</button>
+            </div>
+            <div id="recentLogs" class="log-list"></div>
+          </section>
+
+          <aside class="card insight-card" id="homeInsight">
+            <p class="kicker">The daily debrief</p>
+            <h3>Nothing to report yet</h3>
+            <p class="muted">A few logs and this area will start spotting simple patterns.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="screen-log" class="screen" aria-labelledby="logTitle">
+        <div class="log-screen-head">
+          <div>
+            <p class="kicker">New entry</p>
+            <h2 id="logTitle">Log your log</h2>
+            <p class="muted">Quick first. Details only if you want them.</p>
+          </div>
+          <button id="cancelEditBtn" class="text-btn" hidden>Cancel edit</button>
+        </div>
+
+        <form id="logForm" class="quick-log-form">
+          <input type="hidden" id="entryId" />
+
+          <section class="quick-card">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <p class="step-label">When?</p>
+              <div class="form-row two compact-row">
+                <label>Date
+                  <input id="logDate" type="date" required />
+                </label>
+                <label>Time
+                  <input id="logTime" type="time" required />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="quick-card featured-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <p class="step-label">What are we dealing with?</p>
+              <h3>Pick your Bristol type</h3>
+              <p class="hint">From hard pellets to liquid. Type 4 is generally the smooth middle ground.</p>
+              <div id="bristolPicker" class="bristol-picker quick-bristol" role="radiogroup" aria-label="Bristol stool type"></div>
+            </div>
+          </section>
+
+          <section class="quick-card">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <p class="step-label">How did it go?</p>
+              <div class="quick-choice-group">
+                <div class="quick-choice-block">
+                  <span class="choice-heading">Ease</span>
+                  <div class="segmented-control" data-select-target="ease">
+                    <button type="button" data-value="Easy">Easy</button>
+                    <button type="button" data-value="Normal">Normal</button>
+                    <button type="button" data-value="Difficult">Difficult</button>
+                  </div>
+                  <select id="ease" required class="hidden-select" aria-label="Ease">
+                    <option value="">Choose…</option>
+                    <option value="Easy">Easy</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Difficult">Difficult</option>
+                  </select>
+                </div>
+
+                <div class="quick-choice-block">
+                  <span class="choice-heading">Urgency</span>
+                  <div class="segmented-control" data-select-target="urgency">
+                    <button type="button" data-value="Low">Low</button>
+                    <button type="button" data-value="Medium">Medium</button>
+                    <button type="button" data-value="High">High</button>
+                  </div>
+                  <select id="urgency" required class="hidden-select" aria-label="Urgency">
+                    <option value="">Choose…</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <details class="more-details">
+            <summary>
+              <span>
+                <strong>Add more details</strong>
+                <small>Colour, duration, location, notes and tags</small>
+              </span>
+              <span class="details-plus">+</span>
+            </summary>
+
+            <div class="details-body">
+              <div class="form-row two">
+                <label>Colour
+                  <select id="colour">
+                    <option value="Brown">Brown</option>
+                    <option value="Dark brown">Dark brown</option>
+                    <option value="Light brown">Light brown</option>
+                    <option value="Green">Green</option>
+                    <option value="Yellow">Yellow</option>
+                    <option value="Black">Black</option>
+                    <option value="Red">Red</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+
+                <label>Duration
+                  <div class="input-suffix">
+                    <input id="duration" type="number" min="0" max="180" step="1" inputmode="numeric" placeholder="8" />
+                    <span>mins</span>
+                  </div>
+                </label>
+              </div>
+
+              <label>Location
+                <input id="location" type="text" maxlength="80" placeholder="Home, office, airport throne…" />
+              </label>
+
+              <label>Notes
+                <textarea id="notes" maxlength="500" rows="4" placeholder="Anything worth remembering?"></textarea>
+              </label>
+
+              <label>Tags
+                <input id="tags" type="text" maxlength="120" placeholder="coffee, spicy-food, travel" />
+                <span class="hint">Separate tags with commas.</span>
+              </label>
+            </div>
+          </details>
+
+          <div class="quick-save-zone">
+            <button type="submit" class="primary-btn quick-save-btn" id="saveBtn">Save log</button>
+            <button type="button" class="secondary-btn reset-log-btn" id="resetBtn">Reset</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="screen-history" class="screen" aria-labelledby="historyTitle">
+        <div class="section-head stack-mobile history-head">
+          <div>
+            <p class="kicker">Timeline</p>
+            <h2 id="historyTitle">History</h2>
+            <p class="muted" id="historySummary">Your complete paper trail. Figuratively.</p>
+          </div>
+          <div class="filter-row">
+            <input id="searchInput" type="search" placeholder="Search notes, tags, location…" />
+            <select id="typeFilter" aria-label="Filter by Bristol type">
+              <option value="all">All types</option>
+              <option value="1">Type 1</option><option value="2">Type 2</option><option value="3">Type 3</option>
+              <option value="4">Type 4</option><option value="5">Type 5</option><option value="6">Type 6</option><option value="7">Type 7</option>
+            </select>
+          </div>
+        </div>
+        <div id="historyList" class="log-list history-list"></div>
+      </section>
+
+      <section id="screen-stats" class="screen" aria-labelledby="statsTitle">
+        <div class="stats-title-row">
+          <div>
+            <p class="kicker">Patterns</p>
+            <h2 id="statsTitle">Stats</h2>
+            <p class="muted">A lightweight view of your own data. This is not medical advice.</p>
+          </div>
+          <div class="streak-badge" id="streakBadge"><strong>0</strong><span>day streak</span></div>
+        </div>
+
+        <div id="statsCards" class="stats-grid"></div>
+
+        <div class="stats-two-col">
+          <div class="card">
+            <div class="section-head"><h3>Bristol type distribution</h3><span class="muted" id="statsRangeLabel"></span></div>
+            <div id="typeChart" class="bar-chart"></div>
+          </div>
+
+          <div class="card stats-insight-card">
+            <p class="kicker">Your pattern</p>
+            <h3 id="patternTitle">Start logging to reveal patterns</h3>
+            <p class="muted" id="patternText">Your own trends will appear here as your history grows.</p>
+            <div id="patternFacts" class="pattern-facts"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-head"><h3>Last 14 days</h3><span class="muted">logs per day</span></div>
+          <div id="dailyChart" class="bar-chart daily"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Milestones</p>
+              <h3>Achievements</h3>
+            </div>
+            <span class="muted" id="achievementCount"></span>
+          </div>
+          <div id="achievements" class="achievement-grid"></div>
+        </div>
+      </section>
+
+      <section id="screen-settings" class="screen" aria-labelledby="settingsTitle">
+        <div>
+          <p class="kicker">Your data</p>
+          <h2 id="settingsTitle">Settings & backup</h2>
+        </div>
+        <div class="card settings-list">
+          <div class="setting-item">
+            <div><h3>Export JSON backup</h3><p class="muted">Best for restoring all your entries later.</p></div>
+            <button id="exportJsonBtn" class="secondary-btn">Export JSON</button>
+          </div>
+          <div class="setting-item">
+            <div><h3>Export CSV</h3><p class="muted">Handy for Excel, Sheets or your own analysis.</p></div>
+            <button id="exportCsvBtn" class="secondary-btn">Export CSV</button>
+          </div>
+          <div class="setting-item">
+            <div><h3>Import JSON backup</h3><p class="muted">Merges valid entries into this device.</p></div>
+            <label class="secondary-btn file-btn">Choose backup<input id="importJsonInput" type="file" accept="application/json,.json" hidden /></label>
+          </div>
+          <div class="setting-item danger-zone">
+            <div><h3>Delete all local data</h3><p class="muted">Permanent on this device unless you exported a backup.</p></div>
+            <button id="deleteAllBtn" class="danger-btn">Delete all</button>
+          </div>
+        </div>
+        <div class="card privacy-card">
+          <h3>Privacy by default</h3>
+          <p>Your entries are stored in this browser using IndexedDB. This version does not send your logs to a server. Clearing site data or uninstalling without a backup may remove them.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-btn active" data-nav="home"><span>⌂</span>Home</button>
+      <button class="nav-btn" data-nav="log"><span>＋</span>Log</button>
+      <button class="nav-btn" data-nav="history"><span>☷</span>History</button>
+      <button class="nav-btn" data-nav="stats"><span>▥</span>Stats</button>
+      <button class="nav-btn" data-nav="settings"><span>⚙</span>Settings</button>
+    </nav>
+  </div>
+
+  <dialog id="confirmDialog">
+    <form method="dialog" class="dialog-card">
+      <h3 id="dialogTitle">Are you sure?</h3>
+      <p id="dialogMessage"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary-btn">Cancel</button>
+        <button value="confirm" class="danger-btn">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="successDialog" class="success-dialog">
+    <div class="success-card">
+      <div class="success-tick">✓</div>
+      <p class="kicker">Mission accomplished</p>
+      <h2 id="successTitle">Log logged.</h2>
+      <p id="successSummary" class="success-summary"></p>
+      <p id="successQuip" class="success-quip"></p>
+      <div class="success-actions">
+        <button id="successDoneBtn" class="primary-btn">Done</button>
+        <button id="successViewBtn" class="secondary-btn">View history</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js?v=2"></script>
+</body>
+</html>

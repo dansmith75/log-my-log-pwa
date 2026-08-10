@@ -2,7 +2,9 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const state = { entries: [], selectedType: 4, deferredPrompt: null };
+const APP_VERSION = '2.1.0';
+const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -280,15 +282,147 @@ $('#successDoneBtn').onclick=()=>{ $('#successDialog').close(); showScreen('home
 $('#successViewBtn').onclick=()=>{ $('#successDialog').close(); showScreen('history'); };
 $('#successDialog').addEventListener('cancel',()=>showScreen('home'));
 
-$('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'Log My Log',version:2,exportedAt:new Date().toISOString(),entries:state.entries},null,2),'application/json');
+$('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'Log My Log',version:APP_VERSION,exportedAt:new Date().toISOString(),entries:state.entries},null,2),'application/json');
 $('#exportCsvBtn').onclick=()=>{ const cols=['id','date','time','bristolType','ease','urgency','colour','duration','location','notes','tags']; const esc=v=>`"${String(v??'').replaceAll('"','""')}"`; const rows=state.entries.map(e=>cols.map(c=>esc(c==='tags'?(e.tags||[]).join('|'):e[c])).join(',')); downloadFile(`log-my-log-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(','),...rows].join('\n'),'text/csv'); };
 $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());const entries=Array.isArray(data)?data:data.entries;if(!Array.isArray(entries))throw new Error();const valid=entries.filter(e=>e&&e.id&&e.timestamp&&Number(e.bristolType)>=1&&Number(e.bristolType)<=7);await bulkSave(valid);await refresh();toast(`Imported ${valid.length} entries`);}catch{toast('That backup file is not valid.');}finally{ev.target.value='';} };
 $('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup.'))return; await clearEntries(); await refresh(); toast('All local data deleted'); };
 
-window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); state.deferredPrompt=e; $('#installBtn').hidden=false; });
-$('#installBtn').onclick=async()=>{ if(!state.deferredPrompt)return; state.deferredPrompt.prompt(); await state.deferredPrompt.userChoice; state.deferredPrompt=null; $('#installBtn').hidden=true; };
-window.addEventListener('appinstalled',()=>toast('Log My Log installed'));
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=2').catch(console.error));
+function isStandalone(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
 
-resetForm(); refresh();
-if(new URLSearchParams(location.search).get('action')==='log')showScreen('log');
+function syncInstallUI(){
+  const installed=isStandalone();
+  const canInstall=Boolean(state.deferredPrompt) && !installed;
+  $('#installBtn').hidden=!canInstall;
+  $('#onboardingInstallBtn').hidden=!canInstall;
+  $('#settingsInstallBtn').hidden=installed;
+  $('#appModeBadge').hidden=!installed;
+  if(installed) $('#updateStatus').textContent=`Installed app · v${APP_VERSION}`;
+}
+
+async function promptInstall(){
+  if(isStandalone()){
+    toast('Log My Log is already installed');
+    return;
+  }
+  if(!state.deferredPrompt){
+    toast('Install is not available here yet — try the browser app menu.');
+    return;
+  }
+  state.deferredPrompt.prompt();
+  const choice=await state.deferredPrompt.userChoice;
+  state.deferredPrompt=null;
+  syncInstallUI();
+  if(choice.outcome==='accepted') toast('Installing Log My Log…');
+}
+
+function updateConnectionUI(){
+  const online=navigator.onLine;
+  $('#offlineBanner').hidden=online;
+  $('#connectionStatus').textContent=online?'Online':'Offline';
+  $('#connectionStatus').classList.toggle('offline',!online);
+}
+
+function showOnboarding(force=false){
+  if(!force && localStorage.getItem(ONBOARDING_KEY)==='seen') return;
+  const d=$('#onboardingDialog');
+  if(!d.open) d.showModal();
+}
+
+function finishOnboarding(goToLog=false){
+  localStorage.setItem(ONBOARDING_KEY,'seen');
+  const d=$('#onboardingDialog');
+  if(d.open) d.close();
+  if(goToLog){ resetForm(); showScreen('log'); }
+}
+
+function showUpdateReady(registration){
+  state.swRegistration=registration||state.swRegistration;
+  $('#updateBanner').hidden=false;
+  $('#updateStatus').textContent='A new version is ready. Reload to update.';
+}
+
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)){
+    $('#updateStatus').textContent='Service workers are not supported in this browser.';
+    return;
+  }
+  try{
+    const reg=await navigator.serviceWorker.register('./sw.js?v=2.1');
+    state.swRegistration=reg;
+    if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
+    reg.addEventListener('updatefound',()=>{
+      const worker=reg.installing;
+      if(!worker)return;
+      $('#updateStatus').textContent='Checking the new app version…';
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='installed'){
+          if(navigator.serviceWorker.controller) showUpdateReady(reg);
+          else $('#updateStatus').textContent=`Offline app ready · v${APP_VERSION}`;
+        }
+      });
+    });
+  }catch(err){
+    console.error(err);
+    $('#updateStatus').textContent='Could not initialise offline support.';
+  }
+}
+
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  state.deferredPrompt=e;
+  syncInstallUI();
+});
+window.addEventListener('appinstalled',()=>{
+  state.deferredPrompt=null;
+  syncInstallUI();
+  toast('Log My Log installed');
+});
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change',syncInstallUI);
+window.addEventListener('online',()=>{ updateConnectionUI(); toast('Back online'); });
+window.addEventListener('offline',()=>{ updateConnectionUI(); toast('Offline mode — your logs still save locally'); });
+
+$('#installBtn').onclick=promptInstall;
+$('#settingsInstallBtn').onclick=promptInstall;
+$('#onboardingInstallBtn').onclick=promptInstall;
+$('#showOnboardingBtn').onclick=()=>showOnboarding(true);
+$('#closeOnboardingBtn').onclick=()=>finishOnboarding(false);
+$('#onboardingStartBtn').onclick=()=>finishOnboarding(true);
+$('#onboardingDialog').addEventListener('cancel',ev=>{ ev.preventDefault(); finishOnboarding(false); });
+
+$('#checkUpdateBtn').onclick=async()=>{
+  if(!state.swRegistration){ toast('Offline support is still starting'); return; }
+  $('#updateStatus').textContent='Checking for updates…';
+  try{
+    await state.swRegistration.update();
+    if(state.swRegistration.waiting) showUpdateReady(state.swRegistration);
+    else {
+      $('#updateStatus').textContent=`You’re on the current app version · v${APP_VERSION}`;
+      toast('You’re up to date');
+    }
+  }catch{
+    $('#updateStatus').textContent='Could not check for updates. Try again when online.';
+  }
+};
+
+$('#reloadUpdateBtn').onclick=()=>{
+  const reg=state.swRegistration;
+  if(reg?.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+  else location.reload();
+};
+let refreshing=false;
+navigator.serviceWorker?.addEventListener('controllerchange',()=>{
+  if(refreshing)return;
+  refreshing=true;
+  location.reload();
+});
+
+updateConnectionUI();
+syncInstallUI();
+resetForm();
+refresh().then(()=>{
+  if(new URLSearchParams(location.search).get('action')==='log') showScreen('log');
+  setTimeout(()=>showOnboarding(false),250);
+});
+window.addEventListener('load',registerServiceWorker);

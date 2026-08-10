@@ -8,17 +8,29 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=2.1" />
   <title>Log My Log</title>
 </head>
 <body>
+  <div id="offlineBanner" class="offline-banner" hidden role="status">
+    <span class="status-dot"></span> You’re offline — logging still works on this device.
+  </div>
+
+  <div id="updateBanner" class="update-banner" hidden role="status">
+    <span><strong>Update ready.</strong> A newer Log My Log is available.</span>
+    <button id="reloadUpdateBtn" class="secondary-btn compact-btn">Reload app</button>
+  </div>
+
   <div class="app-shell">
     <header class="topbar">
       <div>
         <div class="eyebrow">PRIVATE • LOCAL-FIRST</div>
         <h1>Log My Log</h1>
       </div>
-      <button id="installBtn" class="ghost-btn" hidden>Install app</button>
+      <div class="topbar-actions">
+        <span id="appModeBadge" class="app-mode-badge" hidden>Installed</span>
+        <button id="installBtn" class="ghost-btn" hidden>Install app</button>
+      </div>
     </header>
 
     <main>
@@ -269,6 +281,23 @@
             <button id="deleteAllBtn" class="danger-btn">Delete all</button>
           </div>
         </div>
+        <div class="card app-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">App</p>
+              <h3>Log My Log <span class="version-pill">v2.1</span></h3>
+            </div>
+            <span id="connectionStatus" class="connection-status">Online</span>
+          </div>
+          <p class="muted">Install it for a home-screen icon, standalone app window and faster access. Your logs remain local to this browser/device.</p>
+          <div class="app-actions">
+            <button id="settingsInstallBtn" class="primary-btn">Install Log My Log</button>
+            <button id="checkUpdateBtn" class="secondary-btn">Check for updates</button>
+            <button id="showOnboardingBtn" class="secondary-btn">Show welcome tour</button>
+          </div>
+          <p class="hint" id="updateStatus">You’re on the current app version.</p>
+        </div>
+
         <div class="card privacy-card">
           <h3>Privacy by default</h3>
           <p>Your entries are stored in this browser using IndexedDB. This version does not send your logs to a server. Clearing site data or uninstalling without a backup may remove them.</p>
@@ -284,6 +313,28 @@
       <button class="nav-btn" data-nav="settings"><span>⚙</span>Settings</button>
     </nav>
   </div>
+
+  <dialog id="onboardingDialog" class="onboarding-dialog">
+    <div class="onboarding-card">
+      <button id="closeOnboardingBtn" class="onboarding-close" aria-label="Close welcome tour">×</button>
+      <div class="onboarding-mark" aria-hidden="true">LML</div>
+      <p class="kicker">Welcome to Log My Log</p>
+      <h2>A private little record of your daily business.</h2>
+      <p class="muted onboarding-intro">Fast to log, useful over time, and local-first by default.</p>
+
+      <div class="onboarding-points">
+        <div><span>1</span><p><strong>Log in seconds</strong><br><small>Pick a Bristol type, ease and urgency. Details are optional.</small></p></div>
+        <div><span>2</span><p><strong>Spot your patterns</strong><br><small>History, streaks, distributions and simple personal insights build as you log.</small></p></div>
+        <div><span>3</span><p><strong>Your data stays here</strong><br><small>Entries are stored locally in IndexedDB unless you choose to export them.</small></p></div>
+      </div>
+
+      <div class="onboarding-actions">
+        <button id="onboardingStartBtn" class="primary-btn big">Start logging</button>
+        <button id="onboardingInstallBtn" class="secondary-btn" hidden>Install app</button>
+      </div>
+      <p class="hint">You can replay this welcome tour any time from Settings.</p>
+    </div>
+  </dialog>
 
   <dialog id="confirmDialog">
     <form method="dialog" class="dialog-card">
@@ -311,6 +362,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=2.1"></script>
 </body>
 </html>

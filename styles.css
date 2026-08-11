@@ -787,3 +787,63 @@ main,
   .bottom-nav .nav-btn small{font-size:.52rem!important}
   .bottom-nav .nav-btn span{font-size:.95rem!important}
 }
+
+
+/* ===== V4.1.1 shared page-width correction =====
+   History, Stats and Settings now use the same content width as the other primary views. */
+#historyView,
+#statsView,
+#settingsView{
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  box-sizing:border-box!important;
+}
+
+#historyView > *,
+#statsView > *,
+#settingsView > *{
+  width:100%!important;
+  max-width:none!important;
+  box-sizing:border-box!important;
+}
+
+/* Preserve normal internal grid/card sizing while removing legacy page-width caps. */
+#historyView .page-shell,
+#historyView .page-content,
+#historyView .content-shell,
+#statsView .page-shell,
+#statsView .page-content,
+#statsView .content-shell,
+#settingsView .page-shell,
+#settingsView .page-content,
+#settingsView .content-shell{
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+
+/* ===== V4.2 anonymous benchmarking ===== */
+.analytics-consent-card{background:linear-gradient(135deg,#fffdf7,#eef5ef)}
+.analytics-consent-row{margin-top:8px}
+#analyticsConsentToggle{accent-color:var(--ink)}
+.cohort-card{background:linear-gradient(135deg,#fffdf7,#f3f7f4)}
+
+/* ===== V4.3 Smarter Reports ===== */
+.gp-summary-section{background:#f3f7f4;border-radius:16px;padding:18px!important;margin:14px 0}
+.gp-summary-copy{font-size:1.02rem;line-height:1.65;font-weight:650}
+.smart-comparison-section>div{min-width:0}
+.clinical-footnote{font-size:.75rem!important;color:var(--muted)}
+#screen-report{width:100%!important;max-width:none!important}
+#screen-report>*{width:100%;max-width:none;box-sizing:border-box}
+@media(max-width:760px){.smart-comparison-section{grid-template-columns:1fr!important}}
+
+/* ===== V5.0 public beta hardening ===== */
+.legal-copy{line-height:1.65}.legal-copy h3{margin-top:24px}.legal-copy h3:first-child{margin-top:0}
+.onboarding-disclaimer{margin:14px 0 0}
+button,input,select,textarea{touch-action:manipulation}
+button,.primary-btn,.secondary-btn,.danger-btn,.danger-outline-btn{min-height:44px}
+input,select,textarea{min-height:44px}
+@media print{.offline-banner,.update-banner{display:none!important}}

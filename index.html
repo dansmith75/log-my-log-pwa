@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=4.1.1" />
+  <link rel="stylesheet" href="styles.css?v=5.0" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -283,6 +283,20 @@
           </div>
           <div id="contextInsightsV4" class="insight-card-grid"></div>
         </section>
+
+        <section class="card cohort-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Anonymous benchmark</p>
+              <h3>How you compare</h3>
+              <p class="muted">Broad, privacy-thresholded comparisons from users who explicitly opted in.</p>
+            </div>
+            <span class="muted" id="cohortPrivacyLabel">Private by threshold</span>
+          </div>
+          <div id="cohortInsights" class="insight-card-grid"></div>
+          <p class="hint" id="cohortStatus">Sign in and opt in to anonymous analytics to see cohort comparisons.</p>
+        </section>
+
       </section>
 
 <section id="screen-stats" class="screen" aria-labelledby="statsTitle">
@@ -492,6 +506,14 @@
             <label>First name<input id="profileFirstName" type="text" autocomplete="given-name" maxlength="80" /></label>
             <label>Surname<input id="profileSurname" type="text" autocomplete="family-name" maxlength="80" /></label>
             <label>Year of birth<input id="profileYearOfBirth" type="number" inputmode="numeric" min="1900" max="2100" step="1" placeholder="e.g. 1975" /></label>
+            <label>Sex
+              <select id="profileSex">
+                <option value="">Not specified</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="prefer-not">Prefer not to say</option>
+              </select>
+            </label>
             <label>Nickname<input id="profileNickname" type="text" autocomplete="nickname" maxlength="80" /></label>
             <label>Mobile number<input id="profileMobile" type="tel" autocomplete="tel" maxlength="40" placeholder="Optional" /></label>
             <label>Country
@@ -515,6 +537,25 @@
           </div>
           <div class="profile-actions"><p class="hint" id="profileMessage">Stored securely in your private profile when signed in.</p><button type="button" id="saveProfileBtn" class="primary-btn">Save profile</button></div>
         </section>
+
+        <section class="card analytics-consent-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Optional analytics</p>
+              <h3>Anonymous benchmarking</h3>
+              <p class="muted">Help build privacy-safe comparison ranges from opted-in users. Your raw logs and identity are never shown to other users.</p>
+            </div>
+          </div>
+          <label class="toggle-row analytics-consent-row">
+            <span>
+              <strong>Contribute anonymous statistics</strong>
+              <small>Default off. Only broad aggregates are used, and very small groups are suppressed.</small>
+            </span>
+            <input id="analyticsConsentToggle" type="checkbox" />
+          </label>
+          <p class="hint" id="analyticsConsentMessage">Not contributing to anonymous benchmarks.</p>
+        </section>
+
 
         <section class="card account-management-card">
             <div class="section-head">
@@ -565,7 +606,7 @@
           <section class="card"><p class="kicker">Control</p><h3>Local and cloud are separate</h3><p class="muted">You can sign out, disable automatic sync, clear cloud copies, or delete local data independently.</p></section>
         </div>
         <section class="card advanced-card"><details><summary><span><strong>Advanced technical details</strong><small>Useful for troubleshooting.</small></span><span class="details-plus">+</span></summary><div class="advanced-body"><p class="muted">On-device storage uses IndexedDB. Optional account sync is provided by Supabase with Row Level Security. Encrypted backup uses PBKDF2 SHA-256 and AES-GCM.</p></div></details></section><section class="card about-version-card">
-          <div><span class="version-orb">4.1.1</span></div>
+          <div><span class="version-orb">5.0</span></div>
           <div><p class="kicker">Log My Log</p><h3>Built for useful data without unnecessary drama.</h3><p class="muted">This app is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></div>
         </section>
       </section>
@@ -635,6 +676,29 @@
             <button type="button" id="deleteAccountBtn" class="danger-btn">Delete my account</button>
           </div>
 
+      </section>
+
+      <section id="screen-privacy" class="screen" aria-labelledby="privacyTitle">
+        <div class="report-page-head"><div><button type="button" class="text-btn report-back" data-nav="settings">← Settings</button><p class="kicker">Your data</p><h2 id="privacyTitle">Privacy</h2><p class="muted">How Log My Log handles your information.</p></div></div>
+        <article class="card legal-copy">
+          <h3>Local first</h3><p>Your bowel logs are stored in IndexedDB on this device first. The app can work without an account and while offline.</p>
+          <h3>Optional cloud sync</h3><p>If you sign in, copies of your logs can be stored securely for multi-device sync.</p>
+          <h3>Profile information</h3><p>Optional profile details are stored separately from bowel logs in your private profile.</p>
+          <h3>Anonymous benchmarking</h3><p>Anonymous analytics is off by default. If you opt in, small cohorts are suppressed and only aggregate statistics are returned.</p>
+          <h3>Backups and deletion</h3><p>You can export data, create an encrypted backup, clear cloud copies, delete local data and delete your account from Settings.</p>
+          <h3>Medical information</h3><p>Log My Log is a personal tracking tool. It does not diagnose, treat or replace professional healthcare advice.</p>
+        </article>
+      </section>
+
+      <section id="screen-terms" class="screen" aria-labelledby="termsTitle">
+        <div class="report-page-head"><div><button type="button" class="text-btn report-back" data-nav="settings">← Settings</button><p class="kicker">Public beta</p><h2 id="termsTitle">Terms of Use</h2><p class="muted">Short, readable terms for using Log My Log.</p></div></div>
+        <article class="card legal-copy">
+          <h3>Personal tracking only</h3><p>Log My Log is intended for personal record-keeping and pattern awareness. It is not a medical device.</p>
+          <h3>Your responsibility</h3><p>You are responsible for the information you enter and for seeking professional medical advice when appropriate.</p>
+          <h3>Availability</h3><p>This is a public beta. Features may change, and online services may occasionally be unavailable. Local logging is designed to continue where possible.</p>
+          <h3>Your account</h3><p>You are responsible for keeping your sign-in credentials secure. You can delete your account from the Danger Zone.</p>
+          <h3>Your data</h3><p>You can export or delete your entries using the controls provided in the app.</p>
+        </article>
       </section>
 
 <section id="screen-report" class="screen" aria-labelledby="reportTitle">
@@ -765,11 +829,16 @@
           </div>
         </div>
 
+        <div class="card settings-list">
+          <div class="setting-item"><div><h3>Privacy</h3><p class="muted">Local storage, cloud sync, profiles and anonymous benchmarking.</p></div><button type="button" class="primary-btn" data-nav="privacy">Open</button></div>
+          <div class="setting-item"><div><h3>Terms of Use</h3><p class="muted">Public-beta terms and limitations.</p></div><button type="button" class="primary-btn" data-nav="terms">Open</button></div>
+        </div>
+
         <div class="card app-card">
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v4.1.1</span></h3>
+              <h3>Log My Log <span class="version-pill">v5.0</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -825,7 +894,7 @@
       </div>
       <p class="hint">You can replay this welcome tour any time from Settings.</p>
     </div>
-  </dialog>
+  <p class="hint onboarding-disclaimer">Log My Log is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></dialog>
 
   <dialog id="confirmDialog">
     <form method="dialog" class="dialog-card">
@@ -866,6 +935,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="captcha-config.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  <script type="module" src="app.js?v=4.1.1"></script>
+  <script type="module" src="app.js?v=5.0"></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
-const CACHE='log-my-log-v4.1.1';
+const CACHE='log-my-log-v5.0';
 const CORE=[
   './',
   './index.html',
-  './styles.css?v=4.1.1',
-  './app.js?v=4.1.1',
+  './styles.css?v=5.0',
+  './app.js?v=5.0',
   './db.js',
   './captcha-config.js',
   './manifest.webmanifest',

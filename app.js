@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '5.0.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -17,7 +17,7 @@ const REMINDER_SETTINGS_KEY = 'log-my-log-reminders-v4.1';
 const REMINDER_LAST_SHOWN_KEY = 'log-my-log-reminder-last-shown';
 const CAPTCHA_SITE_KEY = String(globalThis.LOG_MY_LOG_CAPTCHA_SITE_KEY||'').trim();
 let captchaWidgetId = null;
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, insightDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null, cloudConflicts: 0, pendingUploads: 0 };
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, insightDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null, cloudConflicts: 0, pendingUploads: 0, cohortStats: null };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -68,9 +68,12 @@ function showScreen(name){
   $$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
   if(name==='history') renderHistory();
   if(name==='stats') renderStats();
-  if(name==='insights') renderInsights();
+  if(name==='insights'){renderInsights(); if(state.cloudUser&&!state.cohortStats)loadCohortStats().then(renderCohortInsights);}
   if(name==='reminders') renderReminderSettings();
-  if(name==='report') renderHealthReport();
+  if(name==='report'){
+    renderHealthReport();
+    if(state.cloudUser&&!state.cohortStats)loadCohortStats().then(renderHealthReport);
+  }
   if(name==='account') renderAccount();
   scrollTo({top:0,behavior:'smooth'});
   const active=$(`#screen-${name}`);
@@ -357,8 +360,54 @@ function reportBars(items,labelFn,maxValue){
       <strong>${item.count}</strong>
     </div>`).join('');
 }
+
+function smartReportNarrative(r,baseline){
+  if(!r.n)return '';
+  const weekly=r.n/r.days*7;
+  const ideal=r.n?Math.round(r.entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length/r.n*100):0;
+  const highUrgency=r.n?Math.round(r.entries.filter(e=>e.urgency==='High').length/r.n*100):0;
+  const difficult=r.n?Math.round(r.entries.filter(e=>e.ease==='Difficult').length/r.n*100):0;
+  const parts=[
+    `Over the last ${r.days} days, ${r.n} bowel movement${r.n===1?' was':'s were'} logged (${weekly.toFixed(1)} per week).`,
+    r.avgType!==null?`Average Bristol type was ${Number(r.avgType).toFixed(1)}; ${ideal}% were Types 3–5.`:null,
+    `High urgency was recorded in ${highUrgency}% of logs and difficult passage in ${difficult}%.`
+  ];
+  if(baseline?.n){
+    const typeDiff=r.avgType-baseline.avgType;
+    const freqDiff=weekly-baseline.perWeek;
+    if(Math.abs(typeDiff)>=.35)parts.push(`Average Bristol type was ${typeDiff>0?'higher':'lower'} than your personal baseline (${baseline.avgType.toFixed(1)}).`);
+    if(Math.abs(freqDiff)>=1)parts.push(`Logging frequency was ${freqDiff>0?'higher':'lower'} than your personal baseline (${baseline.perWeek.toFixed(1)} per week).`);
+  }else parts.push('There is not yet enough earlier history for a personal-baseline comparison.');
+  return parts.filter(Boolean).join(' ');
+}
+function smartReportBaselineRows(r,baseline){
+  if(!baseline?.n)return '<p class="muted">More earlier history is needed before this period can be compared with Your Normal.</p>';
+  const weekly=r.n/r.days*7;
+  const highUrgency=r.n?Math.round(r.entries.filter(e=>e.urgency==='High').length/r.n*100):0;
+  const rows=[
+    ['Frequency',`${weekly.toFixed(1)}/wk`,`${baseline.perWeek.toFixed(1)}/wk`],
+    ['Average Bristol type',r.avgType!==null?Number(r.avgType).toFixed(1):'—',baseline.avgType!==null?baseline.avgType.toFixed(1):'—'],
+    ['High urgency',`${highUrgency}%`,`${baseline.highUrgencyPct}%`]
+  ];
+  return `<table class="clinical-table"><thead><tr><th>Measure</th><th>This period</th><th>Your normal</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td></tr>`).join('')}</tbody></table>`;
+}
+function smartReportCohortRows(r,cohort){
+  if(!cohort?.available)return '<p class="muted">Anonymous cohort comparison is not available. It appears only after opt-in and when the privacy threshold is met.</p>';
+  const weekly=r.n/r.days*7;
+  const ideal=r.n?Math.round(r.entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length/r.n*100):0;
+  const rows=[
+    ['Frequency',`${weekly.toFixed(1)}/wk`,cohort.avg_logs_per_week!==null?`${Number(cohort.avg_logs_per_week).toFixed(1)}/wk`:'—'],
+    ['Average Bristol type',r.avgType!==null?Number(r.avgType).toFixed(1):'—',cohort.avg_bristol_type!==null?Number(cohort.avg_bristol_type).toFixed(1):'—'],
+    ['Types 3–5',`${ideal}%`,cohort.ideal_type_pct!==null?`${Math.round(Number(cohort.ideal_type_pct))}%`:'—']
+  ];
+  return `<p class="muted">${escapeHtml(cohort.cohort_label||'Broad anonymous cohort')} · ${cohort.cohort_size} opted-in users</p><table class="clinical-table"><thead><tr><th>Measure</th><th>You</th><th>Cohort</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td></tr>`).join('')}</tbody></table><p class="clinical-footnote">Aggregate comparison only; individual users and raw logs are not exposed.</p>`;
+}
+
 function renderHealthReport(){
   const r=reportModel(state.reportDays);
+  const personal=baselineModel(state.reportDays);
+  const baseline=personal.baselineStats;
+  const cohort=state.cohortStats;
   const el=$('#healthReport'); if(!el)return;
   if(!r.n){
     el.innerHTML=`<div class="card report-empty"><h3>No logs in this period</h3><p class="muted">There are no entries in the last ${r.days} days. Choose a longer report period or add more logs first.</p></div>`;
@@ -382,6 +431,22 @@ function renderHealthReport(){
       <div class="clinical-disclaimer">
         This report summarises user-entered records. It does not diagnose a condition and should be interpreted alongside clinical history and professional assessment.
       </div>
+
+      <section class="clinical-section gp-summary-section">
+        <h2>GP summary</h2>
+        <p class="gp-summary-copy">${escapeHtml(smartReportNarrative(r,baseline))}</p>
+      </section>
+
+      <section class="clinical-section two-column-report smart-comparison-section">
+        <div>
+          <h2>Changes from Your Normal</h2>
+          ${smartReportBaselineRows(r,baseline)}
+        </div>
+        <div>
+          <h2>Anonymous cohort comparison</h2>
+          ${smartReportCohortRows(r,cohort)}
+        </div>
+      </section>
 
       <section class="clinical-metrics">
         <div><span>Recorded bowel movements</span><strong>${r.n}</strong><small>${weekly.toFixed(1)} per week · ${deltaText(weekly,prevWeekly,'/wk')}</small></div>
@@ -507,6 +572,78 @@ function v4TopMode(values){
 function v4TagEntries(entries,tag){
   return entries.filter(e=>(e.tags||[]).map(x=>String(x).toLowerCase()).includes(tag));
 }
+
+function ageBand(year){
+  const y=Number(year),now=new Date().getFullYear();
+  if(!Number.isFinite(y))return null;
+  const age=now-y;
+  if(age<18)return 'Under 18';
+  if(age<25)return '18–24';
+  if(age<35)return '25–34';
+  if(age<45)return '35–44';
+  if(age<55)return '45–54';
+  if(age<65)return '55–64';
+  return '65+';
+}
+async function loadCohortStats(){
+  if(!state.cloudUser){state.cohortStats=null;return null;}
+  try{
+    const {data:profile,error:profileError}=await supabaseClient.from('profiles')
+      .select('analytics_consent,year_of_birth,sex,country,region')
+      .eq('id',state.cloudUser.id)
+      .maybeSingle();
+    if(profileError)throw profileError;
+    if(!profile?.analytics_consent){state.cohortStats=null;return null;}
+    const {data,error}=await supabaseClient.rpc('get_my_cohort_stats');
+    if(error)throw error;
+    state.cohortStats=data||null;
+    return state.cohortStats;
+  }catch(err){
+    console.error('Could not load cohort stats',err);
+    state.cohortStats={error:friendlyCloudError(err,'Anonymous benchmark is temporarily unavailable.')};
+    return state.cohortStats;
+  }
+}
+function renderCohortInsights(){
+  const box=$('#cohortInsights'),status=$('#cohortStatus');
+  if(!box||!status)return;
+  if(!state.cloudUser){
+    box.innerHTML='';
+    status.textContent='Sign in to use anonymous benchmarking.';
+    return;
+  }
+  const consent=$('#analyticsConsentToggle')?.checked;
+  if(consent===false && !state.cohortStats){
+    box.innerHTML='';
+    status.textContent='Turn on anonymous analytics in Account & Sync to contribute and compare.';
+    return;
+  }
+  const d=state.cohortStats;
+  if(!d){
+    box.innerHTML='<div class="empty"><strong>Benchmark not loaded yet.</strong><span>Open Account & Sync and opt in, then return here.</span></div>';
+    status.textContent='Anonymous analytics are optional.';
+    return;
+  }
+  if(d.error){
+    box.innerHTML='';
+    status.textContent=d.error;
+    return;
+  }
+  if(!d.available){
+    box.innerHTML='<div class="empty"><strong>No privacy-safe cohort yet.</strong><span>Comparisons only appear when enough opted-in users match a broad group.</span></div>';
+    status.textContent=`Minimum cohort size is ${d.minimum_group_size||20}.`;
+    return;
+  }
+  const cards=[
+    ['Cohort size',String(d.cohort_size),d.cohort_label||'Broad anonymous group'],
+    ['Average frequency',d.avg_logs_per_week!==null?`${Number(d.avg_logs_per_week).toFixed(1)}/wk`:'—','Anonymous cohort average'],
+    ['Average Bristol type',d.avg_bristol_type!==null?Number(d.avg_bristol_type).toFixed(1):'—','Anonymous cohort average'],
+    ['Types 3–5',d.ideal_type_pct!==null?`${Math.round(Number(d.ideal_type_pct))}%`:'—','Share of cohort logs']
+  ];
+  box.innerHTML=cards.map(([label,value,sub])=>`<article class="v4-insight-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(sub)}</small></article>`).join('');
+  status.textContent='Only aggregate statistics are returned; individual users and raw logs are not exposed.';
+}
+
 function renderInsights(){
   if(!$('#baselineSummary'))return;
   const m=baselineModel(state.insightDays),r=m.recentStats,b=m.baselineStats;
@@ -565,6 +702,7 @@ function renderInsights(){
   $('#contextInsightsV4').innerHTML=context.length
     ? context.map(x=>`<article class="v4-insight-card"><span>${labels[x.tag]||escapeHtml(x.tag)}</span><strong>Avg Type ${x.avg.toFixed(1)}</strong><small>${x.diff>=0?'+':''}${x.diff.toFixed(1)} versus your recent average · ${x.n} tagged logs</small></article>`).join('')
     : '<div class="empty"><strong>Not enough repeated context yet.</strong><span>Use food, drink and symptom chips consistently and comparisons will appear here.</span></div>';
+  renderCohortInsights();
 }
 
 function renderStats(){
@@ -743,7 +881,9 @@ $('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?
 
 
 function friendlyCloudError(err,fallback='Something went wrong. Please try again.'){const raw=String(err?.message||'').toLowerCase();if(!navigator.onLine)return 'You appear to be offline. Your local logs are safe.';if(raw.includes('invalid login')||raw.includes('invalid credentials'))return 'That email or password was not recognised.';if(raw.includes('email not confirmed'))return 'Please confirm your email address before signing in.';if(raw.includes('captcha'))return 'The bot check was not accepted. Please complete it again.';
-  if(raw.includes('rate limit')||raw.includes('too many'))return 'Too many attempts. Please wait a little while and try again.';if(raw.includes('network')||raw.includes('fetch'))return 'Could not reach secure cloud storage. Your local logs are safe.';return fallback;}
+  if(raw.includes('rate limit')||raw.includes('too many'))return 'Too many attempts. Please wait a little while and try again.';if(raw.includes('network')||raw.includes('fetch'))return 'Could not reach secure cloud storage. Your local logs are safe.';
+  if(raw.includes('timeout'))return 'The cloud service took too long to respond. Your local logs are safe.';
+  if(raw.includes('jwt')||raw.includes('session'))return 'Your sign-in session needs refreshing. Please sign in again.';return fallback;}
 function setBusy(button,busy,text){if(!button)return;if(busy){button.dataset.originalText=button.textContent;button.textContent=text;button.disabled=true;button.setAttribute('aria-busy','true');}else{button.textContent=button.dataset.originalText||button.textContent;button.disabled=false;button.removeAttribute('aria-busy');}}
 // ===== V3.2 dependable Supabase sync =====
 const V3_KEYS={
@@ -864,19 +1004,10 @@ function renderAccount(){
   if($('#deviceNameLabel'))$('#deviceNameLabel').textContent=device.name;
   if($('#deviceNameInput'))$('#deviceNameInput').value=device.name;
   if($('#signedOutLocalCount'))$('#signedOutLocalCount').textContent=state.entries.length;
-
-  const pill=$('#syncStatusPill');
-  if(!signedIn){
-    if(pill){pill.textContent='Local only';pill.className='sync-status-pill local';}
-    return;
-  }
+  if(!signedIn)return;
 
   updatePendingUploadEstimate();
   const health=syncHealth();
-  if(pill){
-    pill.textContent=health.label;
-    pill.className=`sync-status-pill ${health.kind==='healthy'?'ready':'local'}`;
-  }
   $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';loadProfile();if($('#accountSummary')){const cloudText=state.cloudCount===null?'checking cloud storage':`${state.cloudCount} log${state.cloudCount===1?'':'s'} protected in cloud storage`;$('#accountSummary').textContent=`Signed in · ${syncHealth().label} · ${cloudText}`;}
   $('#localLogCount').textContent=state.entries.length;
   $('#cloudLogCount').textContent=state.cloudCount===null?'—':state.cloudCount;
@@ -1297,6 +1428,11 @@ function bindV3AccountEvents(){
   $('#saveRecoveredPasswordBtn')?.addEventListener('click',saveRecoveredPassword);
   $('#profileCountry')?.addEventListener('change',()=>populateProfileRegions(''));
   $('#saveProfileBtn')?.addEventListener('click',saveProfile);
+  $('#analyticsConsentToggle')?.addEventListener('change',()=>{
+    if($('#analyticsConsentMessage'))$('#analyticsConsentMessage').textContent=$('#analyticsConsentToggle').checked
+      ? 'Will contribute anonymous statistics after you save your profile.'
+      : 'Will stop contributing after you save your profile.';
+  });
   $('#deleteAccountBtn')?.addEventListener('click',openDeleteAccount);
   $('#confirmDeleteAccountBtn')?.addEventListener('click',deleteMyAccount);
   $('#signOutBtn')?.addEventListener('click',signOutCloud);
@@ -1351,12 +1487,14 @@ async function loadProfile(){
       if($(`#${id}`))$(`#${id}`).value='';
     }
     if($('#profileCountry'))$('#profileCountry').value='';
+    if($('#profileSex'))$('#profileSex').value='';
+    if($('#analyticsConsentToggle'))$('#analyticsConsentToggle').checked=false;
     populateProfileRegions('');
     return;
   }
   try{
     const {data,error}=await supabaseClient.from('profiles')
-      .select('first_name,surname,nickname,mobile,year_of_birth,country,region')
+      .select('first_name,surname,nickname,mobile,year_of_birth,sex,country,region,analytics_consent')
       .eq('id',state.cloudUser.id)
       .maybeSingle();
     if(error)throw error;
@@ -1366,6 +1504,9 @@ async function loadProfile(){
     if($('#profileNickname'))$('#profileNickname').value=profile.nickname||'';
     if($('#profileMobile'))$('#profileMobile').value=profile.mobile||'';
     if($('#profileYearOfBirth'))$('#profileYearOfBirth').value=profile.year_of_birth||'';
+    if($('#profileSex'))$('#profileSex').value=profile.sex||'';
+    if($('#analyticsConsentToggle'))$('#analyticsConsentToggle').checked=Boolean(profile.analytics_consent);
+    if($('#analyticsConsentMessage'))$('#analyticsConsentMessage').textContent=profile.analytics_consent?'Contributing anonymous statistics.':'Not contributing to anonymous benchmarks.';
     if($('#profileCountry'))$('#profileCountry').value=profile.country||'';
     populateProfileRegions(profile.region||'');
     if($('#profileMessage'))$('#profileMessage').textContent=data
@@ -1393,6 +1534,8 @@ async function saveProfile(){
     nickname:$('#profileNickname')?.value.trim()||null,
     mobile:$('#profileMobile')?.value.trim()||null,
     year_of_birth:yearOfBirth,
+    sex:$('#profileSex')?.value||null,
+    analytics_consent:Boolean($('#analyticsConsentToggle')?.checked),
     country:$('#profileCountry')?.value||null,
     region:$('#profileRegion')?.value||null,
     updated_at:new Date().toISOString()
@@ -1402,7 +1545,10 @@ async function saveProfile(){
     if(error)throw error;
     await loadProfile();
     if($('#profileMessage'))$('#profileMessage').textContent='Profile saved.';
+    if($('#analyticsConsentMessage'))$('#analyticsConsentMessage').textContent=profile.analytics_consent?'Contributing anonymous statistics.':'Not contributing to anonymous benchmarks.';
+    state.cohortStats=null;
     toast('Profile saved');
+    loadCohortStats().then(()=>renderCohortInsights());
   }catch(err){
     console.error(err);
     if($('#profileMessage'))$('#profileMessage').textContent=friendlyCloudError(err,'Could not save your profile.');
@@ -1420,7 +1566,11 @@ async function deleteMyAccount(){
   try{
     const {error}=await supabaseClient.rpc('delete_my_account');if(error)throw error;
     try{await supabaseClient.auth.signOut();}catch(_){}
-    state.cloudUser=null;state.cloudCount=null;$('#deleteAccountDialog')?.close();toast('Account deleted. Local logs remain on this device.');showScreen('settings');
+    state.cloudUser=null;state.cloudCount=null;
+    localStorage.removeItem(CLOUD_LAST_USER_KEY);
+    localStorage.removeItem(CLOUD_LAST_SYNC_KEY);
+    localStorage.removeItem(CLOUD_SHADOW_KEY);
+    localStorage.removeItem(CLOUD_DELETE_QUEUE_KEY);$('#deleteAccountDialog')?.close();toast('Account deleted. Local logs remain on this device.');showScreen('settings');
   }catch(err){console.error(err);if($('#deleteAccountMessage'))$('#deleteAccountMessage').textContent=friendlyCloudError(err,'Could not delete the account. Please try again.');}
   finally{setBusy(btn,false);}
 }
@@ -1621,7 +1771,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=4.1.1');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=5.0');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

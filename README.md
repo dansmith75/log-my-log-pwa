@@ -1,3 +1,19 @@
+# Log My Log v5.0 — Public Beta
+
+Public-beta hardening built on the existing V4 onboarding system: Privacy and Terms pages, stronger account-deletion cleanup, accessibility/touch-target hardening, friendlier cloud failures, release checklist, and expanded QA including duplicate-ID/onboarding checks.
+
+# Log My Log v4.3
+
+Smarter Shareable Reports. The existing clinical-style report now includes a concise GP Summary, comparison with the user's personal baseline (Your Normal), and an optional privacy-thresholded anonymous cohort comparison. Existing Bristol distribution, ease, urgency, context, printing and report-period controls are retained.
+
+No new Supabase migration is required beyond V4.2.
+
+# Log My Log v4.2
+
+Adds optional Sex to profiles and a default-OFF anonymous analytics consent. Users who opt in can contribute to privacy-thresholded cohort benchmarking. The backend RPC returns aggregate statistics only and suppresses cohorts smaller than 20 users. Raw logs and individual identities are not returned to other users.
+
+Run `supabase-cohort-analytics.sql` once before testing the new profile and cohort features.
+
 # Log My Log v4.1.1 final
 
 Final release polish: all six primary navigation items stay on one row and use consistent icon/label markup; navigation width matches the app shell; stale v3.3 display badge corrected to v4.1.1.

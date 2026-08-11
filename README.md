@@ -1,3 +1,7 @@
+# Log My Log v4.1.1 final
+
+Final release polish: all six primary navigation items stay on one row and use consistent icon/label markup; navigation width matches the app shell; stale v3.3 display badge corrected to v4.1.1.
+
 # Log My Log v4.1.1
 
 Adds optional Year of Birth to the private profiles table and Cloudflare Turnstile CAPTCHA support for account creation. Run `supabase-profile-year-of-birth.sql` once. CAPTCHA is intentionally inactive until `captcha-config.js` contains the public Turnstile Site Key and Supabase CAPTCHA protection is enabled with the matching Turnstile Secret Key.

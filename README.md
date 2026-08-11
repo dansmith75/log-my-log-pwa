@@ -48,6 +48,10 @@ Logs are stored in the browser on the current device. Export a JSON backup befor
 - Passcode / biometric app lock where supported
 - Automated testing and CI
 
-## v2.1 PWA polish
+## v2.2 PWA polish
 
 This build adds first-run onboarding, improved install controls, online/offline status, a Settings app panel, manual update checks, and service-worker update handling. Existing IndexedDB log data remains compatible with v2.
+
+
+## v2.2
+Adds a richer Daily Debrief, personal throne records, expanded achievements, and achievement-unlock celebrations.

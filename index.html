@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=2.1" />
+  <link rel="stylesheet" href="styles.css?v=2.2" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -246,6 +246,17 @@
           <div id="dailyChart" class="bar-chart daily"></div>
         </div>
 
+        <div class="card records-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Personal bests</p>
+              <h3>Throne records</h3>
+            </div>
+            <span class="muted">all time</span>
+          </div>
+          <div id="personalRecords" class="records-grid"></div>
+        </div>
+
         <div class="card">
           <div class="section-head">
             <div>
@@ -285,7 +296,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v2.1</span></h3>
+              <h3>Log My Log <span class="version-pill">v2.2</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -347,6 +358,16 @@
     </form>
   </dialog>
 
+  <dialog id="achievementDialog" class="achievement-dialog">
+    <div class="achievement-unlock-card">
+      <div id="achievementUnlockIcon" class="achievement-unlock-icon">★</div>
+      <p class="kicker">Achievement unlocked</p>
+      <h2 id="achievementUnlockTitle">Milestone reached</h2>
+      <p id="achievementUnlockText" class="muted"></p>
+      <button id="achievementUnlockBtn" class="primary-btn big">Nice.</button>
+    </div>
+  </dialog>
+
   <dialog id="successDialog" class="success-dialog">
     <div class="success-card">
       <div class="success-tick">✓</div>
@@ -362,6 +383,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=2.1"></script>
+  <script type="module" src="app.js?v=2.2"></script>
 </body>
 </html>

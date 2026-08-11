@@ -2,9 +2,10 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null };
+const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.2';
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -99,15 +100,7 @@ function wireEntryActions(root=document){
   root.querySelectorAll('.delete-entry').forEach(btn=>btn.onclick=()=>removeEntry(btn.closest('.log-card').dataset.id));
 }
 
-function currentStreak(){
-  if(!state.entries.length)return 0;
-  const keys=new Set(state.entries.map(e=>dayKey(e.timestamp)));
-  let d=new Date(); d.setHours(12,0,0,0);
-  if(!keys.has(dayKey(d))){ d.setDate(d.getDate()-1); }
-  let count=0;
-  while(keys.has(dayKey(d))){ count++; d.setDate(d.getDate()-1); }
-  return count;
-}
+function currentStreak(){ return streakForEntries(state.entries); }
 
 function mostCommonTime(){
   if(!state.entries.length)return '—';
@@ -129,12 +122,8 @@ function renderHome(){
   wireEntryActions($('#recentLogs'));
 
   const insight=$('#homeInsight');
-  if(!total){ insight.innerHTML=`<p class="kicker">The daily debrief</p><h3>Nothing to report yet</h3><p class="muted">A few logs and this area will start spotting simple patterns.</p>`; return; }
-  const common=Number(mode(state.entries.map(e=>Number(e.bristolType))));
-  const streak=currentStreak();
-  const time=mostCommonTime();
-  const thisWeek=state.entries.filter(e=>(Date.now()-new Date(e.timestamp).getTime())<7*86400000).length;
-  insight.innerHTML=`<p class="kicker">The daily debrief</p><div class="insight-icon">${stoolSvg(common,true)}</div><h3>${escapeHtml(bristolInfo[common].short)} is leading</h3><p class="muted">Type ${common} is your most common entry. You’ve logged <strong>${thisWeek}</strong> time${thisWeek===1?'':'s'} in the last 7 days${streak?` and your current streak is <strong>${streak} day${streak===1?'':'s'}</strong>`:''}.</p><div class="insight-footer"><span>Most common time</span><strong>${time}</strong></div>`;
+  const debrief=dailyDebrief();
+  insight.innerHTML=`<p class="kicker">The daily debrief</p>${debrief.type?`<div class="insight-icon">${stoolSvg(debrief.type,true)}</div>`:'<div class="debrief-mark">TODAY</div>'}<h3>${escapeHtml(debrief.title)}</h3><p class="muted">${escapeHtml(debrief.body)}</p><div class="insight-footer"><span>${escapeHtml(debrief.footer)}</span><strong>${escapeHtml(debrief.value)}</strong></div>`;
 }
 
 function renderHistory(){
@@ -149,22 +138,76 @@ function renderHistory(){
   wireEntryActions($('#historyList'));
 }
 
-function achievementData(){
-  const n=state.entries.length;
-  const activeDays=new Set(state.entries.map(e=>dayKey(e.timestamp))).size;
-  const type4=state.entries.filter(e=>Number(e.bristolType)===4).length;
-  const locations=new Set(state.entries.map(e=>(e.location||'').trim().toLowerCase()).filter(Boolean)).size;
-  const tagged=state.entries.filter(e=>(e.tags||[]).length).length;
+function achievementData(entries=state.entries){
+  const n=entries.length;
+  const activeDays=new Set(entries.map(e=>dayKey(e.timestamp))).size;
+  const type4=entries.filter(e=>Number(e.bristolType)===4).length;
+  const locations=new Set(entries.map(e=>(e.location||'').trim().toLowerCase()).filter(Boolean)).size;
+  const tagged=entries.filter(e=>(e.tags||[]).length).length;
+  const streak=streakForEntries(entries);
+  const easy=entries.filter(e=>e.ease==='Easy').length;
+  const early=entries.filter(e=>Number((e.time||'12:00').split(':')[0])<7).length;
+  const late=entries.filter(e=>Number((e.time||'12:00').split(':')[0])>=22).length;
   return [
-    {icon:'✓',title:'First Flush',desc:'Log your first entry',unlocked:n>=1,progress:Math.min(n,1),goal:1},
-    {icon:'III',title:'Triple Threat',desc:'Log 3 entries',unlocked:n>=3,progress:Math.min(n,3),goal:3},
-    {icon:'7',title:'Regular Customer',desc:'Log on 7 different days',unlocked:activeDays>=7,progress:Math.min(activeDays,7),goal:7},
-    {icon:'4',title:'Smooth Operator',desc:'Record 10 Type 4s',unlocked:type4>=10,progress:Math.min(type4,10),goal:10},
-    {icon:'⌖',title:'Tour de Toilet',desc:'Log in 3 named locations',unlocked:locations>=3,progress:Math.min(locations,3),goal:3},
-    {icon:'#',title:'Data Nerd',desc:'Add tags to 10 logs',unlocked:tagged>=10,progress:Math.min(tagged,10),goal:10},
-    {icon:'50',title:'Serious Logger',desc:'Reach 50 logs',unlocked:n>=50,progress:Math.min(n,50),goal:50},
-    {icon:'100',title:'Centurion',desc:'Reach 100 logs',unlocked:n>=100,progress:Math.min(n,100),goal:100}
+    {id:'first',icon:'✓',title:'First Flush',desc:'Log your first entry',unlocked:n>=1,progress:Math.min(n,1),goal:1},
+    {id:'triple',icon:'III',title:'Triple Threat',desc:'Log 3 entries',unlocked:n>=3,progress:Math.min(n,3),goal:3},
+    {id:'week',icon:'7',title:'Regular Customer',desc:'Log on 7 different days',unlocked:activeDays>=7,progress:Math.min(activeDays,7),goal:7},
+    {id:'streak7',icon:'🔥',title:'On a Roll',desc:'Reach a 7-day logging streak',unlocked:streak>=7,progress:Math.min(streak,7),goal:7},
+    {id:'type4',icon:'4',title:'Smooth Operator',desc:'Record 10 Type 4s',unlocked:type4>=10,progress:Math.min(type4,10),goal:10},
+    {id:'easy10',icon:'↘',title:'Easy Does It',desc:'Record 10 easy visits',unlocked:easy>=10,progress:Math.min(easy,10),goal:10},
+    {id:'locations',icon:'⌖',title:'Tour de Toilet',desc:'Log in 3 named locations',unlocked:locations>=3,progress:Math.min(locations,3),goal:3},
+    {id:'tags',icon:'#',title:'Data Nerd',desc:'Add tags to 10 logs',unlocked:tagged>=10,progress:Math.min(tagged,10),goal:10},
+    {id:'early',icon:'☀',title:'Early Bird',desc:'Log 5 times before 7am',unlocked:early>=5,progress:Math.min(early,5),goal:5},
+    {id:'late',icon:'☾',title:'Night Shift',desc:'Log 5 times after 10pm',unlocked:late>=5,progress:Math.min(late,5),goal:5},
+    {id:'fifty',icon:'50',title:'Serious Logger',desc:'Reach 50 logs',unlocked:n>=50,progress:Math.min(n,50),goal:50},
+    {id:'hundred',icon:'100',title:'Centurion',desc:'Reach 100 logs',unlocked:n>=100,progress:Math.min(n,100),goal:100}
   ];
+}
+
+function streakForEntries(entries){
+  if(!entries.length)return 0;
+  const keys=new Set(entries.map(e=>dayKey(e.timestamp)));
+  let d=new Date(); d.setHours(12,0,0,0);
+  if(!keys.has(dayKey(d))) d.setDate(d.getDate()-1);
+  let count=0;
+  while(keys.has(dayKey(d))){ count++; d.setDate(d.getDate()-1); }
+  return count;
+}
+
+function personalRecords(){
+  if(!state.entries.length) return [];
+  const byDay={};
+  state.entries.forEach(e=>{ const k=dayKey(e.timestamp); (byDay[k]??=[]).push(e); });
+  const busiest=Object.entries(byDay).sort((a,b)=>b[1].length-a[1].length)[0];
+  const durations=state.entries.filter(e=>Number(e.duration)>0);
+  const quickest=[...durations].sort((a,b)=>Number(a.duration)-Number(b.duration))[0];
+  const longest=[...durations].sort((a,b)=>Number(b.duration)-Number(a.duration))[0];
+  const locations=state.entries.map(e=>(e.location||'').trim()).filter(Boolean);
+  const commonLocation=locations.length?mode(locations.map(x=>x.toLowerCase())):null;
+  const prettyLocation=commonLocation?locations.find(x=>x.toLowerCase()===commonLocation):null;
+  return [
+    {icon:'🔥',label:'Current streak',value:`${currentStreak()} day${currentStreak()===1?'':'s'}`,sub:'keep the paperwork moving'},
+    {icon:'▦',label:'Busiest day',value:`${busiest[1].length} log${busiest[1].length===1?'':'s'}`,sub:new Date(`${busiest[0]}T12:00`).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})},
+    {icon:'⚡',label:'Quickest visit',value:quickest?`${quickest.duration} min`:'—',sub:quickest?'efficient business':'add durations to compete'},
+    {icon:'⌛',label:'Longest visit',value:longest?`${longest.duration} min`:'—',sub:longest?'a proper sitting':'add durations to compete'},
+    {icon:'⌖',label:'Home advantage',value:prettyLocation||'—',sub:prettyLocation?'most logged location':'name a few locations'},
+    {icon:'★',label:'Perfect 4s',value:String(state.entries.filter(e=>Number(e.bristolType)===4).length),sub:'smooth operators logged'}
+  ];
+}
+
+function dailyDebrief(){
+  const today=dayKey(new Date());
+  const todays=state.entries.filter(e=>dayKey(e.timestamp)===today);
+  if(!todays.length) return {title:'No business yet today',body:'When nature calls, the debrief will assemble itself.',footer:'Current streak',value:`${currentStreak()} day${currentStreak()===1?'':'s'}`,type:null};
+  const avg=(todays.reduce((s,e)=>s+Number(e.bristolType),0)/todays.length).toFixed(1);
+  const mins=todays.reduce((s,e)=>s+(Number(e.duration)||0),0);
+  const common=Number(mode(todays.map(e=>Number(e.bristolType))));
+  const easy=todays.filter(e=>e.ease==='Easy').length;
+  const parts=[`${todays.length} log${todays.length===1?'':'s'} today`,`average Type ${avg}`];
+  if(mins) parts.push(`${mins} min on the throne`);
+  if(easy) parts.push(`${easy} easy visit${easy===1?'':'s'}`);
+  const verdict=Number(avg)>=3&&Number(avg)<=5?'A respectably balanced day so far.':Number(avg)<3?'Things are running on the firmer side today.':'Things are running on the looser side today.';
+  return {title:todays.length>=3?'A busy day at the office':todays.length===2?'Double-header complete':'Today’s first report is in',body:`${parts.join(' · ')}. ${verdict}`,footer:'Today’s leader',value:`Type ${common}`,type:common};
 }
 
 function renderStats(){
@@ -205,6 +248,9 @@ function renderStats(){
     $('#patternText').textContent='Your own trends will appear here as your history grows.';
     $('#patternFacts').innerHTML='';
   }
+
+  const records=personalRecords();
+  $('#personalRecords').innerHTML=records.length?records.map(r=>`<article class="record-item"><div class="record-icon">${r.icon}</div><span>${escapeHtml(r.label)}</span><strong>${escapeHtml(r.value)}</strong><small>${escapeHtml(r.sub)}</small></article>`).join(''):`<div class="empty records-empty"><strong>No records yet.</strong><span>Your first log automatically sets several personal bests.</span></div>`;
 
   const achievements=achievementData();
   const unlocked=achievements.filter(a=>a.unlocked).length;
@@ -248,6 +294,19 @@ async function refresh(){ state.entries=await getEntries(); renderHome(); render
 async function confirmAction(title,message){ const d=$('#confirmDialog'); $('#dialogTitle').textContent=title; $('#dialogMessage').textContent=message; d.showModal(); return new Promise(resolve=>{d.onclose=()=>resolve(d.returnValue==='confirm');}); }
 function downloadFile(name,content,type){ const blob=new Blob([content],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000); }
 
+function newlyUnlocked(beforeEntries,afterEntries){
+  const before=new Set(achievementData(beforeEntries).filter(a=>a.unlocked).map(a=>a.id));
+  return achievementData(afterEntries).filter(a=>a.unlocked&&!before.has(a.id));
+}
+
+function showAchievementUnlock(achievement){
+  if(!achievement)return;
+  $('#achievementUnlockIcon').textContent=achievement.icon;
+  $('#achievementUnlockTitle').textContent=achievement.title;
+  $('#achievementUnlockText').textContent=achievement.desc;
+  $('#achievementDialog').showModal();
+}
+
 function showSaveSuccess(entry,wasEditing){
   $('#successTitle').textContent=wasEditing?'Log updated.':'Log logged.';
   $('#successSummary').textContent=`Type ${entry.bristolType} · ${entry.ease} · ${entry.urgency} urgency`;
@@ -262,7 +321,10 @@ $('#logForm').addEventListener('submit',async ev=>{
   if(!$('#ease').value||!$('#urgency').value){ toast('Choose ease and urgency first'); return; }
   const entry={id,date,time,timestamp:new Date(`${date}T${time}:00`).toISOString(),bristolType:state.selectedType,ease:$('#ease').value,urgency:$('#urgency').value,colour:$('#colour').value,duration:$('#duration').value===''?null:Number($('#duration').value),location:$('#location').value.trim(),notes:$('#notes').value.trim(),tags:$('#tags').value.split(',').map(x=>x.trim()).filter(Boolean).slice(0,12),updatedAt:new Date().toISOString()};
   const wasEditing=Boolean($('#entryId').value);
-  await saveEntry(entry); await refresh(); resetForm(); showSaveSuccess(entry,wasEditing);
+  const beforeEntries=[...state.entries];
+  await saveEntry(entry); await refresh();
+  if(!wasEditing) state.pendingAchievement=newlyUnlocked(beforeEntries,state.entries)[0]||null;
+  resetForm(); showSaveSuccess(entry,wasEditing);
 });
 
 $$('.segmented-control').forEach(control=>{
@@ -278,9 +340,11 @@ $('#cancelEditBtn').onclick=()=>{resetForm();showScreen('history');};
 $('#searchInput').addEventListener('input',renderHistory);
 $('#typeFilter').addEventListener('change',renderHistory);
 
-$('#successDoneBtn').onclick=()=>{ $('#successDialog').close(); showScreen('home'); };
-$('#successViewBtn').onclick=()=>{ $('#successDialog').close(); showScreen('history'); };
-$('#successDialog').addEventListener('cancel',()=>showScreen('home'));
+function finishSuccess(destination){ $('#successDialog').close(); showScreen(destination); if(state.pendingAchievement){ const a=state.pendingAchievement; state.pendingAchievement=null; setTimeout(()=>showAchievementUnlock(a),180); } }
+$('#successDoneBtn').onclick=()=>finishSuccess('home');
+$('#successViewBtn').onclick=()=>finishSuccess('history');
+$('#successDialog').addEventListener('cancel',()=>finishSuccess('home'));
+$('#achievementUnlockBtn').onclick=()=>$('#achievementDialog').close();
 
 $('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'Log My Log',version:APP_VERSION,exportedAt:new Date().toISOString(),entries:state.entries},null,2),'application/json');
 $('#exportCsvBtn').onclick=()=>{ const cols=['id','date','time','bristolType','ease','urgency','colour','duration','location','notes','tags']; const esc=v=>`"${String(v??'').replaceAll('"','""')}"`; const rows=state.entries.map(e=>cols.map(c=>esc(c==='tags'?(e.tags||[]).join('|'):e[c])).join(',')); downloadFile(`log-my-log-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(','),...rows].join('\n'),'text/csv'); };
@@ -349,7 +413,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=2.1');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=2.2');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

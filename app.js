@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.2.2';
+const APP_VERSION = '3.4.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -12,6 +12,7 @@ const CLOUD_LAST_USER_KEY = 'log-my-log-cloud-last-user';
 const CLOUD_DELETE_QUEUE_KEY = 'log-my-log-cloud-delete-queue';
 const AUTO_SYNC_KEY = 'log-my-log-auto-sync';
 const CLOUD_SHADOW_KEY = 'log-my-log-cloud-shadow';
+const WELCOME_TIP_KEY = 'log-my-log-welcome-tip-v3.3';
 const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null, cloudConflicts: 0, pendingUploads: 0 };
 
 const bristolInfo = {
@@ -66,6 +67,10 @@ function showScreen(name){
   if(name==='report') renderHealthReport();
   if(name==='account') renderAccount();
   scrollTo({top:0,behavior:'smooth'});
+  const active=$(`#screen-${name}`);
+  const heading=active?.querySelector('h2');
+  if(heading){ heading.setAttribute('tabindex','-1'); heading.focus({preventScroll:true}); }
+  document.title=name==='home'?'Log My Log':`${heading?.textContent||name} · Log My Log`;
 }
 
 function renderBristolPicker(){
@@ -626,6 +631,8 @@ $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!
 $('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup. If signed in, these logs will also be removed from your cloud account on the next sync.'))return; state.entries.forEach(e=>queueCloudDeletion(e.id)); await clearEntries(); await refresh(); if(state.cloudUser&&navigator.onLine)flushCloudDeletions().then(()=>refreshCloudCount()).catch(console.error); toast('All local data deleted'); };
 
 
+function friendlyCloudError(err,fallback='Something went wrong. Please try again.'){const raw=String(err?.message||'').toLowerCase();if(!navigator.onLine)return 'You appear to be offline. Your local logs are safe.';if(raw.includes('invalid login')||raw.includes('invalid credentials'))return 'That email or password was not recognised.';if(raw.includes('email not confirmed'))return 'Please confirm your email address before signing in.';if(raw.includes('rate limit')||raw.includes('too many'))return 'Too many attempts. Please wait a little while and try again.';if(raw.includes('network')||raw.includes('fetch'))return 'Could not reach secure cloud storage. Your local logs are safe.';return fallback;}
+function setBusy(button,busy,text){if(!button)return;if(busy){button.dataset.originalText=button.textContent;button.textContent=text;button.disabled=true;button.setAttribute('aria-busy','true');}else{button.textContent=button.dataset.originalText||button.textContent;button.disabled=false;button.removeAttribute('aria-busy');}}
 // ===== V3.2 dependable Supabase sync =====
 const V3_KEYS={
   deviceId:'log-my-log-device-id',
@@ -758,7 +765,7 @@ function renderAccount(){
     pill.textContent=health.label;
     pill.className=`sync-status-pill ${health.kind==='healthy'?'ready':'local'}`;
   }
-  $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';
+  $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';if($('#accountSummary')){const cloudText=state.cloudCount===null?'checking cloud storage':`${state.cloudCount} log${state.cloudCount===1?'':'s'} protected in cloud storage`;$('#accountSummary').textContent=`Signed in · ${syncHealth().label} · ${cloudText}`;}
   $('#localLogCount').textContent=state.entries.length;
   $('#cloudLogCount').textContent=state.cloudCount===null?'—':state.cloudCount;
   $('#pendingSyncCount').textContent=state.pendingUploads+ownedPendingDeletes();
@@ -808,6 +815,7 @@ async function initialiseCloudAuth(){
   }
   supabaseClient.auth.onAuthStateChange((event,session)=>{
     state.cloudUser=session?.user||null;
+    if(event==='PASSWORD_RECOVERY')setTimeout(openPasswordRecovery,0);
     if(state.cloudUser)localStorage.setItem(CLOUD_LAST_USER_KEY,state.cloudUser.id);
     state.cloudCount=null;
     state.cloudConflicts=0;
@@ -836,7 +844,7 @@ async function signUpCloud(){
       setSyncMessage('Account created. Automatic sync will merge your local history.');
       if(autoSyncEnabled())syncNow({quiet:true});
     }else setAuthMessage('Check your email to confirm the account, then return here and sign in.');
-  }catch(err){console.error(err);setAuthMessage(err.message||'Could not create account.',true);}
+  }catch(err){console.error(err);setAuthMessage(friendlyCloudError(err,'Could not create the account. Please try again.'),true);}
 }
 async function signInCloud(){
   if(!supabaseClient)return setAuthMessage('Cloud library is unavailable.',true);
@@ -854,7 +862,7 @@ async function signInCloud(){
     await refreshCloudCount();
     setSyncMessage(autoSyncEnabled()?'Signed in. Syncing automatically…':'Signed in. Tap Sync now when you are ready.');
     if(autoSyncEnabled())syncNow({quiet:true});
-  }catch(err){console.error(err);setAuthMessage(err.message||'Could not sign in.',true);}
+  }catch(err){console.error(err);setAuthMessage(friendlyCloudError(err,'Could not sign in. Please try again.'),true);}
 }
 async function forgotPassword(){
   if(!supabaseClient)return;
@@ -865,7 +873,7 @@ async function forgotPassword(){
     const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo});
     if(error)throw error;
     setAuthMessage('Password-reset email sent. Check your inbox.');
-  }catch(err){console.error(err);setAuthMessage(err.message||'Could not send reset email.',true);}
+  }catch(err){console.error(err);setAuthMessage(friendlyCloudError(err,'Could not send the reset email. Please try again.'),true);}
 }
 async function sendPasswordResetForCurrentUser(){
   const email=state.cloudUser?.email;
@@ -885,7 +893,7 @@ async function changeAccountEmail(){
     if(error)throw error;
     $('#changeEmailDialog')?.close();
     toast('Email change requested — check your inbox');
-  }catch(err){console.error(err);toast(err.message||'Could not change email');}
+  }catch(err){console.error(err);toast(friendlyCloudError(err,'Could not change the email address.'));}
 }
 async function signOutCloud(){
   if(!supabaseClient)return;
@@ -1069,7 +1077,7 @@ async function syncNow(options={}){
     if(!quiet)toast('Cloud sync complete');
   }catch(err){
     console.error(err);
-    setSyncMessage(err.message||'Sync failed. Your local logs are unchanged.',true);
+    setSyncMessage(friendlyCloudError(err,'Sync did not complete. Your local logs are unchanged.'),true);
     if(!quiet)toast('Cloud sync failed — local logs are safe');
   }finally{
     state.cloudBusy=false;
@@ -1130,6 +1138,7 @@ function bindV3AccountEvents(){
   $('#signInBtn')?.addEventListener('click',signInCloud);
   $('#signUpBtn')?.addEventListener('click',signUpCloud);
   $('#forgotPasswordBtn')?.addEventListener('click',forgotPassword);
+  $('#saveRecoveredPasswordBtn')?.addEventListener('click',saveRecoveredPassword);
   $('#signOutBtn')?.addEventListener('click',signOutCloud);
   $('#syncNowBtn')?.addEventListener('click',()=>syncNow());
   $('#autoSyncToggle')?.addEventListener('change',e=>{
@@ -1147,6 +1156,19 @@ function bindV3AccountEvents(){
   });
 }
 
+
+function renderWelcomeTip(){
+  const tip=$('#welcomeTip');
+  if(!tip)return;
+  tip.hidden=localStorage.getItem(WELCOME_TIP_KEY)==='dismissed';
+}
+function dismissWelcomeTip(){
+  localStorage.setItem(WELCOME_TIP_KEY,'dismissed');
+  renderWelcomeTip();
+}
+
+function openPasswordRecovery(){const x=$('#passwordRecoveryDialog');if(x&&!x.open)x.showModal();}
+async function saveRecoveredPassword(){const password=$('#recoveryPassword')?.value||'',confirm=$('#recoveryPasswordConfirm')?.value||'',msg=$('#recoveryMessage');if(password.length<8){msg.textContent='Use at least 8 characters.';return;}if(password!==confirm){msg.textContent='Those passwords do not match.';return;}const btn=$('#saveRecoveredPasswordBtn');setBusy(btn,true,'Saving…');try{const {error}=await supabaseClient.auth.updateUser({password});if(error)throw error;$('#passwordRecoveryDialog')?.close();toast('Password updated — you are signed in');}catch(err){console.error(err);msg.textContent=friendlyCloudError(err,'Could not update the password. Please request a fresh reset link.');}finally{setBusy(btn,false);}}
 function isStandalone(){
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
@@ -1209,7 +1231,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.2.2');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.4');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{
@@ -1278,6 +1300,8 @@ navigator.serviceWorker?.addEventListener('controllerchange',()=>{
   location.reload();
 });
 
+$('#dismissWelcomeTip')?.addEventListener('click',dismissWelcomeTip);
+renderWelcomeTip();
 bindV3AccountEvents();
 ensureDeviceIdentity();
 initialiseCloudAuth();

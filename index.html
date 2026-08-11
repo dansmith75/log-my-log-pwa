@@ -8,10 +8,11 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.2.2" />
+  <link rel="stylesheet" href="styles.css?v=3.4" />
   <title>Log My Log</title>
 </head>
 <body>
+  <div id="a11yStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <div id="offlineBanner" class="offline-banner" hidden role="status">
     <span class="status-dot"></span> You’re offline — logging still works on this device.
   </div>
@@ -45,6 +46,11 @@
         </div>
 
         <div class="stats-grid" id="homeStats"></div>
+        <section id="welcomeTip" class="welcome-tip card" hidden>
+          <div><p class="kicker">Good to know</p><h3>Local first. Cloud when you want it.</h3>
+          <p class="muted">Logging works offline. Sign in only if you want private multi-device sync.</p></div>
+          <button id="dismissWelcomeTip" class="text-btn">Got it</button>
+        </section>
 
         <div class="home-grid">
           <section class="card recent-card">
@@ -380,7 +386,7 @@
                 <span class="cloud-connected-mark">✓</span>
               </div>
 
-              <div class="sync-health-row">
+              <p class="account-summary" id="accountSummary">Checking your account status…</p><div class="sync-health-row">
                 <div class="sync-health" id="syncHealthBadge"><span class="sync-health-dot"></span><strong>Checking…</strong></div>
                 <span class="muted" id="syncLastDetail">Last sync: never</span>
               </div>
@@ -406,7 +412,7 @@
               </div>
               <dl class="account-details">
                 <div><dt>Device ID</dt><dd><code id="signedInDeviceId">—</code></dd></div>
-                <div><dt>Storage</dt><dd>IndexedDB + Supabase</dd></div>
+                <div><dt>Storage</dt><dd>On-device + cloud</dd></div>
                 <div><dt>Auto sync</dt><dd id="autoSyncLabel">On</dd></div>
               </dl>
               <label class="toggle-row">
@@ -447,7 +453,7 @@
                 <button type="button" id="changePasswordBtn" class="secondary-btn">Send reset email</button>
               </div>
               <div>
-                <div><strong>Change email</strong><p class="muted">Supabase will require confirmation for the new address.</p></div>
+                <div><strong>Change email</strong><p class="muted">You'll be asked to confirm the new address.</p></div>
                 <button type="button" id="changeEmailBtn" class="secondary-btn">Change email</button>
               </div>
               <div>
@@ -474,6 +480,7 @@
         </section>
       </section>
 
+      <dialog id="passwordRecoveryDialog"><form method="dialog" class="dialog-card"><p class="kicker">Account recovery</p><h3>Choose a new password</h3><p class="muted">Your reset link was accepted. Set a new password for your Log My Log account.</p><label>New password<input id="recoveryPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" /></label><label>Confirm password<input id="recoveryPasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Type it again" /></label><p class="hint" id="recoveryMessage">Use at least 8 characters.</p><div class="dialog-actions"><button value="cancel" class="secondary-btn">Cancel</button><button type="button" id="saveRecoveredPasswordBtn" class="primary-btn">Save new password</button></div></form></dialog>
       <dialog id="changeEmailDialog">
         <form method="dialog" class="dialog-card">
           <p class="kicker">Account</p>
@@ -488,6 +495,23 @@
           </div>
         </form>
       </dialog>
+
+      <section id="screen-about" class="screen" aria-labelledby="aboutTitle">
+        <div class="section-head">
+          <div><p class="kicker">About</p><h2 id="aboutTitle">Private by design.</h2>
+          <p class="muted">Log My Log keeps working without an account. Cloud sync is optional and account-owned.</p></div>
+        </div>
+        <div class="about-grid">
+          <section class="card"><p class="kicker">Local first</p><h3>Your device comes first</h3><p class="muted">Logs are saved in IndexedDB on this device. Offline logging does not depend on cloud storage.</p></section>
+          <section class="card"><p class="kicker">Cloud sync</p><h3>Optional, not compulsory</h3><p class="muted">When signed in, your logs can sync securely between your devices. Your cloud data is tied to your account.</p></section>
+          <section class="card"><p class="kicker">Portable</p><h3>Your data can leave</h3><p class="muted">Export JSON or CSV, or create an AES-GCM encrypted backup protected by your own password.</p></section>
+          <section class="card"><p class="kicker">Control</p><h3>Local and cloud are separate</h3><p class="muted">You can sign out, disable automatic sync, clear cloud copies, or delete local data independently.</p></section>
+        </div>
+        <section class="card advanced-card"><details><summary><span><strong>Advanced technical details</strong><small>Useful for troubleshooting.</small></span><span class="details-plus">+</span></summary><div class="advanced-body"><p class="muted">On-device storage uses IndexedDB. Optional account sync is provided by Supabase with Row Level Security. Encrypted backup uses PBKDF2 SHA-256 and AES-GCM.</p></div></details></section><section class="card about-version-card">
+          <div><span class="version-orb">3.4</span></div>
+          <div><p class="kicker">Log My Log</p><h3>Built for useful data without unnecessary drama.</h3><p class="muted">This app is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></div>
+        </section>
+      </section>
 
       <section id="screen-report" class="screen" aria-labelledby="reportTitle">
         <div class="report-page-head">
@@ -551,7 +575,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v3.2.2</span></h3>
+              <h3>Log My Log <span class="version-pill">v3.3</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -564,7 +588,13 @@
           <p class="hint" id="updateStatus">You’re on the current app version.</p>
         </div>
 
-        <div class="card privacy-card">
+        <div class="card settings-list">
+      <div class="setting-item">
+        <div><h3>About & privacy</h3><p class="muted">How local storage, cloud sync and backups work.</p></div>
+        <button class="secondary-btn" data-nav="about">Open</button>
+      </div>
+    </div>
+    <div class="card privacy-card">
           <h3>Privacy by default</h3>
           <p>Your entries are stored in this browser using IndexedDB. This version does not send your logs to a server. Clearing site data or uninstalling without a backup may remove them.</p>
         </div>
@@ -639,6 +669,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="app.js?v=3.2.2"></script>
+  <script type="module" src="app.js?v=3.4"></script>
 </body>
 </html>

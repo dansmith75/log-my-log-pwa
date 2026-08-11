@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Log My Log",
   "short_name": "Log My Log",
-  "description": "A private, local-first poo tracker with history, stats and offline support.",
+  "description": "A private, local-first poo tracker with optional encrypted cloud sync, history, stats and offline support.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

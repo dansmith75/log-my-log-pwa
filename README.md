@@ -1,3 +1,7 @@
+# Log My Log v3.4
+
+Plain-language cloud UI, password recovery, friendly account errors, clearer account status, and advanced technical details.
+
 # Log My Log v3.2.2
 
 Hotfix: restores correct behaviour for the HTML `hidden` attribute. The offline and update banners are now only visible when JavaScript intentionally shows them, rather than being forced visible by their `display:flex` component styling.

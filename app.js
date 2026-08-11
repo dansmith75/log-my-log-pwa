@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -765,7 +765,7 @@ function renderAccount(){
     pill.textContent=health.label;
     pill.className=`sync-status-pill ${health.kind==='healthy'?'ready':'local'}`;
   }
-  $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';if($('#accountSummary')){const cloudText=state.cloudCount===null?'checking cloud storage':`${state.cloudCount} log${state.cloudCount===1?'':'s'} protected in cloud storage`;$('#accountSummary').textContent=`Signed in · ${syncHealth().label} · ${cloudText}`;}
+  $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';loadProfile();if($('#accountSummary')){const cloudText=state.cloudCount===null?'checking cloud storage':`${state.cloudCount} log${state.cloudCount===1?'':'s'} protected in cloud storage`;$('#accountSummary').textContent=`Signed in · ${syncHealth().label} · ${cloudText}`;}
   $('#localLogCount').textContent=state.entries.length;
   $('#cloudLogCount').textContent=state.cloudCount===null?'—':state.cloudCount;
   $('#pendingSyncCount').textContent=state.pendingUploads+ownedPendingDeletes();
@@ -1139,6 +1139,10 @@ function bindV3AccountEvents(){
   $('#signUpBtn')?.addEventListener('click',signUpCloud);
   $('#forgotPasswordBtn')?.addEventListener('click',forgotPassword);
   $('#saveRecoveredPasswordBtn')?.addEventListener('click',saveRecoveredPassword);
+  $('#profileCountry')?.addEventListener('change',()=>populateProfileRegions(''));
+  $('#saveProfileBtn')?.addEventListener('click',saveProfile);
+  $('#deleteAccountBtn')?.addEventListener('click',openDeleteAccount);
+  $('#confirmDeleteAccountBtn')?.addEventListener('click',deleteMyAccount);
   $('#signOutBtn')?.addEventListener('click',signOutCloud);
   $('#syncNowBtn')?.addEventListener('click',()=>syncNow());
   $('#autoSyncToggle')?.addEventListener('change',e=>{
@@ -1169,6 +1173,57 @@ function dismissWelcomeTip(){
 
 function openPasswordRecovery(){const x=$('#passwordRecoveryDialog');if(x&&!x.open)x.showModal();}
 async function saveRecoveredPassword(){const password=$('#recoveryPassword')?.value||'',confirm=$('#recoveryPasswordConfirm')?.value||'',msg=$('#recoveryMessage');if(password.length<8){msg.textContent='Use at least 8 characters.';return;}if(password!==confirm){msg.textContent='Those passwords do not match.';return;}const btn=$('#saveRecoveredPasswordBtn');setBusy(btn,true,'Saving…');try{const {error}=await supabaseClient.auth.updateUser({password});if(error)throw error;$('#passwordRecoveryDialog')?.close();toast('Password updated — you are signed in');}catch(err){console.error(err);msg.textContent=friendlyCloudError(err,'Could not update the password. Please request a fresh reset link.');}finally{setBusy(btn,false);}}
+
+const PROFILE_REGIONS={
+  GB:["Bedfordshire","Berkshire","Bristol","Buckinghamshire","Cambridgeshire","Cheshire","Cornwall","Cumbria","Derbyshire","Devon","Dorset","Durham","East Sussex","Essex","Gloucestershire","Greater London","Greater Manchester","Hampshire","Herefordshire","Hertfordshire","Isle of Wight","Kent","Lancashire","Leicestershire","Lincolnshire","Merseyside","Norfolk","North Yorkshire","Northamptonshire","Northumberland","Nottinghamshire","Oxfordshire","Rutland","Shropshire","Somerset","South Yorkshire","Staffordshire","Suffolk","Surrey","Tyne and Wear","Warwickshire","West Midlands","West Sussex","West Yorkshire","Wiltshire","Worcestershire","Scotland","Wales","Northern Ireland"],
+  IE:["Carlow","Cavan","Clare","Cork","Donegal","Dublin","Galway","Kerry","Kildare","Kilkenny","Laois","Leitrim","Limerick","Longford","Louth","Mayo","Meath","Monaghan","Offaly","Roscommon","Sligo","Tipperary","Waterford","Westmeath","Wexford","Wicklow"],
+  US:["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","District of Columbia"],
+  CA:["Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland and Labrador","Northwest Territories","Nova Scotia","Nunavut","Ontario","Prince Edward Island","Quebec","Saskatchewan","Yukon"],
+  AU:["Australian Capital Territory","New South Wales","Northern Territory","Queensland","South Australia","Tasmania","Victoria","Western Australia"],
+  NZ:["Auckland","Bay of Plenty","Canterbury","Gisborne","Hawke's Bay","Manawatū-Whanganui","Marlborough","Nelson","Northland","Otago","Southland","Taranaki","Tasman","Waikato","Wellington","West Coast"]
+};
+function populateProfileRegions(selected=''){
+  const country=$('#profileCountry')?.value||'', select=$('#profileRegion'); if(!select)return;
+  const regions=PROFILE_REGIONS[country]||["Other / not listed"];
+  select.innerHTML='<option value="">Not specified</option>'+regions.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+  if(selected && !regions.includes(selected)){const o=document.createElement('option');o.value=selected;o.textContent=selected;select.appendChild(o);}
+  select.value=selected||'';
+}
+function loadProfile(){
+  const meta=state.cloudUser?.user_metadata||{};
+  if($('#profileFirstName'))$('#profileFirstName').value=meta.first_name||'';
+  if($('#profileSurname'))$('#profileSurname').value=meta.surname||'';
+  if($('#profileNickname'))$('#profileNickname').value=meta.nickname||'';
+  if($('#profileMobile'))$('#profileMobile').value=meta.mobile||'';
+  if($('#profileCountry'))$('#profileCountry').value=meta.country||'';
+  populateProfileRegions(meta.region||'');
+}
+async function saveProfile(){
+  if(!state.cloudUser){toast('Sign in to save your profile');return;}
+  const btn=$('#saveProfileBtn');setBusy(btn,true,'Saving…');
+  const data={first_name:$('#profileFirstName')?.value.trim()||'',surname:$('#profileSurname')?.value.trim()||'',nickname:$('#profileNickname')?.value.trim()||'',mobile:$('#profileMobile')?.value.trim()||'',country:$('#profileCountry')?.value||'',region:$('#profileRegion')?.value||''};
+  try{
+    const {data:result,error}=await supabaseClient.auth.updateUser({data});if(error)throw error;
+    state.cloudUser=result.user;loadProfile();$('#profileMessage').textContent='Profile saved.';toast('Profile saved');
+  }catch(err){console.error(err);$('#profileMessage').textContent=friendlyCloudError(err,'Could not save your profile.');}
+  finally{setBusy(btn,false);}
+}
+function openDeleteAccount(){
+  if(!state.cloudUser){toast('Sign in before deleting your account');return;}
+  if($('#deleteAccountConfirm'))$('#deleteAccountConfirm').value='';
+  if($('#deleteAccountMessage'))$('#deleteAccountMessage').textContent='This cannot be undone.';
+  $('#deleteAccountDialog')?.showModal();
+}
+async function deleteMyAccount(){
+  if($('#deleteAccountConfirm')?.value.trim()!=='DELETE'){if($('#deleteAccountMessage'))$('#deleteAccountMessage').textContent='Type DELETE exactly to confirm.';return;}
+  const btn=$('#confirmDeleteAccountBtn');setBusy(btn,true,'Deleting…');
+  try{
+    const {error}=await supabaseClient.rpc('delete_my_account');if(error)throw error;
+    try{await supabaseClient.auth.signOut();}catch(_){}
+    state.cloudUser=null;state.cloudCount=null;$('#deleteAccountDialog')?.close();toast('Account deleted. Local logs remain on this device.');showScreen('settings');
+  }catch(err){console.error(err);if($('#deleteAccountMessage'))$('#deleteAccountMessage').textContent=friendlyCloudError(err,'Could not delete the account. Please try again.');}
+  finally{setBusy(btn,false);}
+}
 function isStandalone(){
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
@@ -1231,7 +1286,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.4');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.5');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

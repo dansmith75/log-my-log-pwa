@@ -1,3 +1,15 @@
+# Log My Log v3.5
+
+Consistent dark-green Open actions in Settings; optional account profile (first name, surname, nickname, mobile, country and region); and a confirmed self-service Delete my account action in Danger Zone. Run `supabase-delete-account.sql` once in Supabase SQL Editor to enable account deletion.
+
+# Log My Log v3.4.2
+
+Account & Sync UX cleanup: back-to-Settings navigation, title casing, simplified header, green auto-sync control, encrypted backup moved to Export & Import, Clear cloud moved to Danger Zone, and Settings data groups converted from expanders into dedicated pages opened with an Open button.
+
+# Log My Log v3.4.1
+
+Layout refinement: larger Log a poo CTA, full-width Daily Debrief above recent activity, page-width navigation, icon-enhanced History type filter, and cleaner expandable Settings data sections.
+
 # Log My Log v3.4
 
 Plain-language cloud UI, password recovery, friendly account errors, clearer account status, and advanced technical details.

@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.4" />
+  <link rel="stylesheet" href="styles.css?v=3.5" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -52,24 +52,22 @@
           <button id="dismissWelcomeTip" class="text-btn">Got it</button>
         </section>
 
-        <div class="home-grid">
-          <section class="card recent-card">
-            <div class="section-head">
-              <div>
-                <p class="kicker">Recent activity</p>
-                <h3>Your latest logs</h3>
-              </div>
-              <button class="text-btn" data-nav="history">View all</button>
-            </div>
-            <div id="recentLogs" class="log-list"></div>
-          </section>
+        <section class="card insight-card debrief-wide" id="homeInsight">
+          <p class="kicker">The daily debrief</p>
+          <h3>Nothing to report yet</h3>
+          <p class="muted">A few logs and this area will start spotting simple patterns.</p>
+        </section>
 
-          <aside class="card insight-card" id="homeInsight">
-            <p class="kicker">The daily debrief</p>
-            <h3>Nothing to report yet</h3>
-            <p class="muted">A few logs and this area will start spotting simple patterns.</p>
-          </aside>
-        </div>
+        <section class="card recent-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Recent activity</p>
+              <h3>Your latest logs</h3>
+            </div>
+            <button class="text-btn" data-nav="history">View all</button>
+          </div>
+          <div id="recentLogs" class="log-list"></div>
+        </section>
       </section>
 
       <section id="screen-log" class="screen" aria-labelledby="logTitle">
@@ -240,9 +238,9 @@
           <div class="filter-row">
             <input id="searchInput" type="search" placeholder="Search notes, tags, location…" />
             <select id="typeFilter" aria-label="Filter by Bristol type">
-              <option value="all">All types</option>
-              <option value="1">Type 1</option><option value="2">Type 2</option><option value="3">Type 3</option>
-              <option value="4">Type 4</option><option value="5">Type 5</option><option value="6">Type 6</option><option value="7">Type 7</option>
+              <option value="all">💩 All types</option>
+              <option value="1">🟤 Type 1</option><option value="2">🟫 Type 2</option><option value="3">🌭 Type 3</option>
+              <option value="4">✨ Type 4</option><option value="5">🟤 Type 5</option><option value="6">💥 Type 6</option><option value="7">🌊 Type 7</option>
             </select>
           </div>
         </div>
@@ -326,13 +324,13 @@
 
 
       <section id="screen-account" class="screen" aria-labelledby="accountTitle">
-        <div class="section-head account-title-row">
+        <div class="report-page-head account-page-head">
           <div>
-            <p class="kicker">V3.2</p>
-            <h2 id="accountTitle">Account & sync</h2>
+            <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
+            <p class="kicker">Account</p>
+            <h2 id="accountTitle">Account & Sync</h2>
             <p class="muted">Local-first, automatic sync, and clear control over what lives where.</p>
           </div>
-          <span class="sync-status-pill local" id="syncStatusPill">Local only</span>
         </div>
 
         <div id="authSignedOut">
@@ -443,7 +441,38 @@
             </details>
           </section>
 
-          <section class="card account-management-card">
+          <section class="card profile-card">
+          <div class="section-head">
+            <div><p class="kicker">Optional profile</p><h3>About you</h3><p class="muted">Optional details that can make future personal metrics more useful. Leave anything blank you do not want to provide.</p></div>
+          </div>
+          <div class="profile-grid">
+            <label>First name<input id="profileFirstName" type="text" autocomplete="given-name" maxlength="80" /></label>
+            <label>Surname<input id="profileSurname" type="text" autocomplete="family-name" maxlength="80" /></label>
+            <label>Nickname<input id="profileNickname" type="text" autocomplete="nickname" maxlength="80" /></label>
+            <label>Mobile number<input id="profileMobile" type="tel" autocomplete="tel" maxlength="40" placeholder="Optional" /></label>
+            <label>Country
+              <select id="profileCountry">
+                <option value="">Not specified</option>
+                <option value="GB">United Kingdom</option><option value="IE">Ireland</option>
+                <option value="US">United States</option><option value="CA">Canada</option>
+                <option value="AU">Australia</option><option value="NZ">New Zealand</option>
+                <option value="FR">France</option><option value="DE">Germany</option><option value="ES">Spain</option>
+                <option value="IT">Italy</option><option value="NL">Netherlands</option><option value="BE">Belgium</option>
+                <option value="PT">Portugal</option><option value="SE">Sweden</option><option value="NO">Norway</option>
+                <option value="DK">Denmark</option><option value="FI">Finland</option><option value="CH">Switzerland</option>
+                <option value="AT">Austria</option><option value="PL">Poland</option><option value="ZA">South Africa</option>
+                <option value="IN">India</option><option value="SG">Singapore</option><option value="JP">Japan</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+            <label>County / state / region
+              <select id="profileRegion"><option value="">Not specified</option></select>
+            </label>
+          </div>
+          <div class="profile-actions"><p class="hint" id="profileMessage">Stored securely with your account when signed in.</p><button type="button" id="saveProfileBtn" class="primary-btn">Save profile</button></div>
+        </section>
+
+        <section class="card account-management-card">
             <div class="section-head">
               <div><p class="kicker">Account</p><h3>Manage account</h3></div>
             </div>
@@ -456,31 +485,15 @@
                 <div><strong>Change email</strong><p class="muted">You'll be asked to confirm the new address.</p></div>
                 <button type="button" id="changeEmailBtn" class="secondary-btn">Change email</button>
               </div>
-              <div>
-                <div><strong>Clear cloud data</strong><p class="muted">Delete cloud copies but leave local logs on this device.</p></div>
-                <button type="button" id="clearCloudBtn" class="danger-outline-btn">Clear cloud</button>
-              </div>
-            </div>
+              
           </section>
         </div>
 
-        <section class="card">
-          <div class="section-head"><div><p class="kicker">Portable privacy</p><h3>Encrypted backup</h3></div></div>
-          <p class="muted">Cloud sync is optional. You can still create a password-protected backup to keep independently.</p>
-          <div class="encrypted-backup-grid">
-            <label>Backup password
-              <input id="backupPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
-            </label>
-            <div class="encrypted-backup-actions">
-              <button type="button" id="exportEncryptedBtn" class="secondary-btn">Export encrypted backup</button>
-              <label class="secondary-btn file-btn">Import encrypted backup<input id="importEncryptedInput" type="file" accept="application/json,.json" hidden /></label>
-            </div>
-          </div>
-          <p class="hint">If you forget the password, the encrypted backup cannot be recovered.</p>
-        </section>
+        
       </section>
 
       <dialog id="passwordRecoveryDialog"><form method="dialog" class="dialog-card"><p class="kicker">Account recovery</p><h3>Choose a new password</h3><p class="muted">Your reset link was accepted. Set a new password for your Log My Log account.</p><label>New password<input id="recoveryPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" /></label><label>Confirm password<input id="recoveryPasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Type it again" /></label><p class="hint" id="recoveryMessage">Use at least 8 characters.</p><div class="dialog-actions"><button value="cancel" class="secondary-btn">Cancel</button><button type="button" id="saveRecoveredPasswordBtn" class="primary-btn">Save new password</button></div></form></dialog>
+      <dialog id="deleteAccountDialog"><form method="dialog" class="dialog-card"><p class="kicker">Permanent action</p><h3>Delete your account?</h3><p class="muted">This permanently deletes your cloud logs and sign-in account. Your local logs on this device will remain.</p><label>Type DELETE to confirm<input id="deleteAccountConfirm" type="text" autocomplete="off" /></label><p class="hint" id="deleteAccountMessage">This cannot be undone.</p><div class="dialog-actions"><button value="cancel" class="secondary-btn">Cancel</button><button type="button" id="confirmDeleteAccountBtn" class="danger-btn">Delete account</button></div></form></dialog>
       <dialog id="changeEmailDialog">
         <form method="dialog" class="dialog-card">
           <p class="kicker">Account</p>
@@ -508,12 +521,79 @@
           <section class="card"><p class="kicker">Control</p><h3>Local and cloud are separate</h3><p class="muted">You can sign out, disable automatic sync, clear cloud copies, or delete local data independently.</p></section>
         </div>
         <section class="card advanced-card"><details><summary><span><strong>Advanced technical details</strong><small>Useful for troubleshooting.</small></span><span class="details-plus">+</span></summary><div class="advanced-body"><p class="muted">On-device storage uses IndexedDB. Optional account sync is provided by Supabase with Row Level Security. Encrypted backup uses PBKDF2 SHA-256 and AES-GCM.</p></div></details></section><section class="card about-version-card">
-          <div><span class="version-orb">3.4</span></div>
+          <div><span class="version-orb">3.5</span></div>
           <div><p class="kicker">Log My Log</p><h3>Built for useful data without unnecessary drama.</h3><p class="muted">This app is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></div>
         </section>
       </section>
 
-      <section id="screen-report" class="screen" aria-labelledby="reportTitle">
+            <section id="screen-data" class="screen" aria-labelledby="dataTitle">
+        <div class="report-page-head">
+          <div>
+            <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
+            <p class="kicker">Your data</p>
+            <h2 id="dataTitle">Export & Import</h2>
+            <p class="muted">Back up, move or analyse your Log My Log data.</p>
+          </div>
+        </div>
+
+        <div class="card settings-list">
+          <div class="setting-item">
+            <div><h3>Export JSON backup</h3><p class="muted">Best for restoring all your entries later.</p></div>
+            <button id="exportJsonBtn" class="secondary-btn">Export JSON</button>
+          </div>
+          <div class="setting-item">
+            <div><h3>Export CSV</h3><p class="muted">Handy for Excel, Sheets or your own analysis.</p></div>
+            <button id="exportCsvBtn" class="secondary-btn">Export CSV</button>
+          </div>
+          <div class="setting-item">
+            <div><h3>Import JSON backup</h3><p class="muted">Merges valid entries into this device.</p></div>
+            <label class="secondary-btn file-btn">Choose backup<input id="importJsonInput" type="file" accept="application/json,.json" hidden /></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-head"><div><p class="kicker">Encrypted backup</p><h3>Password-protected backup</h3></div></div>
+          <p class="muted">Create a password-protected backup you can move between devices. Encryption happens in your browser.</p>
+          <div class="encrypted-backup-grid">
+            <label>Backup password
+              <input id="backupPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+            </label>
+            <div class="encrypted-backup-actions">
+              <button type="button" id="exportEncryptedBtn" class="secondary-btn">Export encrypted backup</button>
+              <label class="secondary-btn file-btn">Import encrypted backup<input id="importEncryptedInput" type="file" accept="application/json,.json" hidden /></label>
+            </div>
+          </div>
+          <p class="hint">If you forget the password, the encrypted backup cannot be recovered.</p>
+        </div>
+      </section>
+
+      <section id="screen-danger" class="screen" aria-labelledby="dangerTitle">
+        <div class="report-page-head">
+          <div>
+            <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
+            <p class="kicker">Danger zone</p>
+            <h2 id="dangerTitle">Delete Data</h2>
+            <p class="muted">These actions are permanent unless you have a backup.</p>
+          </div>
+        </div>
+
+        <div class="card settings-list">
+          <div class="setting-item danger-zone">
+            <div><h3>Delete all local data</h3><p class="muted">Removes all logs stored on this device.</p></div>
+            <button id="deleteAllBtn" class="danger-btn">Delete local data</button>
+          </div>
+          <div class="setting-item danger-zone">
+            <div><h3>Clear cloud data</h3><p class="muted">Deletes cloud copies for your signed-in account but keeps local logs on this device.</p></div>
+            <button type="button" id="clearCloudBtn" class="danger-btn">Clear cloud data</button>
+          </div>
+        </div>          <div class="setting-item danger-zone account-delete-row">
+            <div><h3>Delete my account</h3><p class="muted">Permanently deletes your cloud data and sign-in account. Local logs on this device are kept unless you delete them separately.</p></div>
+            <button type="button" id="deleteAccountBtn" class="danger-btn">Delete my account</button>
+          </div>
+
+      </section>
+
+<section id="screen-report" class="screen" aria-labelledby="reportTitle">
         <div class="report-page-head">
           <div>
             <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
@@ -547,30 +627,26 @@
         <div class="card settings-list">
           <div class="setting-item featured-setting">
             <div><h3>Account & sync</h3><p class="muted">Manage this device, encrypted backups and optional multi-device sync.</p></div>
-            <button type="button" id="openAccountBtn" class="primary-btn">Open account</button>
+            <button type="button" id="openAccountBtn" class="primary-btn">Open</button>
           </div>
 
           <div class="setting-item featured-setting">
             <div><h3>Health summary report</h3><p class="muted">Create a clean 7, 30 or 90-day summary to print or save as PDF for a GP or other healthcare professional.</p></div>
-            <button type="button" id="openReportBtn" class="primary-btn">Create report</button>
-          </div>
-          <div class="setting-item">
-            <div><h3>Export JSON backup</h3><p class="muted">Best for restoring all your entries later.</p></div>
-            <button id="exportJsonBtn" class="secondary-btn">Export JSON</button>
-          </div>
-          <div class="setting-item">
-            <div><h3>Export CSV</h3><p class="muted">Handy for Excel, Sheets or your own analysis.</p></div>
-            <button id="exportCsvBtn" class="secondary-btn">Export CSV</button>
-          </div>
-          <div class="setting-item">
-            <div><h3>Import JSON backup</h3><p class="muted">Merges valid entries into this device.</p></div>
-            <label class="secondary-btn file-btn">Choose backup<input id="importJsonInput" type="file" accept="application/json,.json" hidden /></label>
-          </div>
-          <div class="setting-item danger-zone">
-            <div><h3>Delete all local data</h3><p class="muted">Permanent on this device unless you exported a backup.</p></div>
-            <button id="deleteAllBtn" class="danger-btn">Delete all</button>
+            <button type="button" id="openReportBtn" class="primary-btn">Open</button>
           </div>
         </div>
+
+        <div class="card settings-list">
+          <div class="setting-item">
+            <div><h3>Export & import</h3><p class="muted">Back up, move or analyse your data.</p></div>
+            <button type="button" class="primary-btn" data-nav="data">Open</button>
+          </div>
+          <div class="setting-item danger-zone">
+            <div><h3>Danger zone</h3><p class="muted">Permanent local and cloud deletion controls.</p></div>
+            <button type="button" class="primary-btn" data-nav="danger">Open</button>
+          </div>
+        </div>
+
         <div class="card app-card">
           <div class="section-head">
             <div>
@@ -669,6 +745,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="app.js?v=3.4"></script>
+  <script type="module" src="app.js?v=3.5"></script>
 </body>
 </html>

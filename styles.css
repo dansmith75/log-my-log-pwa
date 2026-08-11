@@ -488,3 +488,144 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 .account-summary{margin:0;padding:11px 13px;border-radius:14px;background:#f7f5ee;font-weight:750}.advanced-card{padding:0;overflow:hidden;margin-top:18px}.advanced-card summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;padding:20px 22px}.advanced-body{padding:0 22px 22px}button[aria-busy='true']{cursor:wait;opacity:.72}
+
+
+/* ===== V3.4.1 layout refinement ===== */
+
+/* Make the main logging CTA unmistakably primary */
+#quickLogBtn {
+  min-height: 72px;
+  padding: 18px 28px;
+  font-size: 1.18rem;
+  border-radius: 18px;
+  min-width: 210px;
+  box-shadow: 0 12px 26px rgba(23,58,43,.16);
+}
+
+/* Daily Debrief now spans full page width above Recent Activity */
+.debrief-wide {
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 26px;
+}
+.debrief-wide h3 {
+  font-size: 1.35rem;
+}
+.debrief-wide .muted {
+  max-width: 900px;
+}
+
+/* Match fixed nav width to the page shell */
+.bottom-nav {
+  width: min(1240px, calc(100% - 32px));
+  max-width: none;
+}
+@media (min-width: 900px) {
+  .bottom-nav {
+    width: min(1240px, calc(100% - 80px));
+  }
+}
+@media (min-width: 1200px) {
+  .bottom-nav {
+    width: min(1240px, calc(100% - 120px));
+  }
+}
+
+/* History filter gets a little more room for icon + type label */
+#typeFilter {
+  min-width: 150px;
+}
+
+/* Settings sections are grouped and collapsible */
+.settings-details {
+  padding: 0;
+  overflow: hidden;
+}
+.settings-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px;
+}
+.settings-details summary::-webkit-details-marker {
+  display: none;
+}
+.settings-details summary > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+.settings-details summary .kicker {
+  margin-bottom: 0;
+}
+.settings-details summary strong {
+  font-size: 1.05rem;
+}
+.settings-details summary small {
+  color: var(--muted);
+}
+.settings-details-body {
+  padding: 0 22px 10px;
+  border-top: 1px solid var(--line);
+}
+.settings-details .setting-item {
+  margin: 0;
+}
+.danger-details {
+  border-color: rgba(163,56,47,.22);
+}
+.danger-details summary .kicker {
+  color: var(--danger);
+}
+
+@media (max-width: 620px) {
+  #quickLogBtn {
+    width: 100%;
+    min-width: 0;
+    min-height: 66px;
+    font-size: 1.08rem;
+  }
+  .debrief-wide {
+    padding: 20px;
+  }
+  .bottom-nav {
+    width: 100%;
+  }
+  #typeFilter {
+    min-width: 0;
+  }
+  .settings-details summary {
+    padding: 17px;
+  }
+  .settings-details-body {
+    padding: 0 17px 8px;
+  }
+}
+
+
+/* ===== V3.4.2 settings/account UX cleanup ===== */
+#autoSyncToggle {
+  accent-color: var(--ink);
+}
+.account-page-head {
+  margin-bottom: 18px;
+}
+#screen-data .settings-list,
+#screen-danger .settings-list {
+  margin-bottom: 18px;
+}
+#screen-danger .setting-item {
+  border-color: rgba(163,56,47,.18);
+}
+
+/* ===== V3.5 profile + consistent settings actions ===== */
+#screen-settings .setting-item > .primary-btn{min-width:118px}
+.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.profile-grid label{display:grid;gap:7px;font-weight:750}
+.profile-grid input,.profile-grid select{width:100%}
+.profile-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px}
+.profile-actions .hint{margin:0}
+.account-delete-row{border-top:1px solid rgba(163,56,47,.18)}
+@media(max-width:680px){.profile-grid{grid-template-columns:1fr}.profile-actions{align-items:stretch;flex-direction:column}.profile-actions button{width:100%}}

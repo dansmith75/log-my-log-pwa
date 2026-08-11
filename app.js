@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.0.3';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30 };
@@ -600,16 +600,6 @@ $('#successDialog').addEventListener('cancel',()=>finishSuccess('home'));
 $('#achievementUnlockBtn').onclick=()=>$('#achievementDialog').close();
 
 
-
-if($('#openAccountBtn')) $('#openAccountBtn').onclick=()=>showScreen('account');
-if($('#saveDeviceNameBtn')) $('#saveDeviceNameBtn').onclick=saveDeviceName;
-if($('#configureSyncBtn')) $('#configureSyncBtn').onclick=()=>$('#syncConfigDialog')?.showModal();
-if($('#exportEncryptedBtn')) $('#exportEncryptedBtn').onclick=exportEncryptedBackup;
-if($('#importEncryptedInput')) $('#importEncryptedInput').addEventListener('change',e=>{
-  const file=e.target.files?.[0];
-  if(file) importEncryptedBackup(file);
-});
-
 $('#openReportBtn').onclick=()=>showScreen('report');
 $$('#reportRange button').forEach(button=>button.addEventListener('click',()=>{
   state.reportDays=Number(button.dataset.reportDays);
@@ -622,6 +612,120 @@ $('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toI
 $('#exportCsvBtn').onclick=()=>{ const cols=['id','date','time','bristolType','ease','urgency','colour','duration','location','notes','tags']; const esc=v=>`"${String(v??'').replaceAll('"','""')}"`; const rows=state.entries.map(e=>cols.map(c=>esc(c==='tags'?(e.tags||[]).join('|'):e[c])).join(',')); downloadFile(`log-my-log-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(','),...rows].join('\n'),'text/csv'); };
 $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());const entries=Array.isArray(data)?data:data.entries;if(!Array.isArray(entries))throw new Error();const valid=entries.filter(e=>e&&e.id&&e.timestamp&&Number(e.bristolType)>=1&&Number(e.bristolType)<=7);await bulkSave(valid);await refresh();toast(`Imported ${valid.length} entries`);}catch{toast('That backup file is not valid.');}finally{ev.target.value='';} };
 $('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup.'))return; await clearEntries(); await refresh(); toast('All local data deleted'); };
+
+
+// ===== V3 account, device identity and encrypted backups =====
+const V3_KEYS={
+  deviceId:'log-my-log-device-id',
+  deviceName:'log-my-log-device-name'
+};
+
+function makeDeviceId(){
+  return globalThis.crypto?.randomUUID
+    ? crypto.randomUUID()
+    : `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
+}
+
+function ensureDeviceIdentity(){
+  let id=localStorage.getItem(V3_KEYS.deviceId);
+  if(!id){ id=makeDeviceId(); localStorage.setItem(V3_KEYS.deviceId,id); }
+  let name=localStorage.getItem(V3_KEYS.deviceName);
+  if(!name){ name='This device'; localStorage.setItem(V3_KEYS.deviceName,name); }
+  return {id,name};
+}
+
+function renderAccount(){
+  const device=ensureDeviceIdentity();
+  if($('#deviceIdLabel')) $('#deviceIdLabel').textContent=device.id;
+  if($('#deviceNameLabel')) $('#deviceNameLabel').textContent=device.name;
+  if($('#deviceNameInput')) $('#deviceNameInput').value=device.name;
+}
+
+function saveDeviceName(){
+  const value=$('#deviceNameInput')?.value.trim();
+  if(!value){ toast('Enter a device name'); return; }
+  localStorage.setItem(V3_KEYS.deviceName,value);
+  renderAccount();
+  toast('Device name saved');
+}
+
+function bytesToB64(bytes){
+  let binary='';
+  bytes.forEach(b=>binary+=String.fromCharCode(b));
+  return btoa(binary);
+}
+function b64ToBytes(value){
+  const binary=atob(value);
+  return Uint8Array.from(binary,c=>c.charCodeAt(0));
+}
+async function deriveBackupKey(password,salt){
+  const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),{name:'PBKDF2'},false,['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt,iterations:250000,hash:'SHA-256'},
+    material,
+    {name:'AES-GCM',length:256},
+    false,
+    ['encrypt','decrypt']
+  );
+}
+async function exportEncryptedBackup(){
+  const password=$('#backupPassword')?.value||'';
+  if(password.length<8){ toast('Use a password of at least 8 characters'); return; }
+  try{
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await deriveBackupKey(password,salt);
+    const plain=new TextEncoder().encode(JSON.stringify({
+      format:'log-my-log-encrypted-backup',
+      version:1,
+      exportedAt:new Date().toISOString(),
+      entries:state.entries
+    }));
+    const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain);
+    const payload={
+      format:'log-my-log-encrypted',
+      version:1,
+      salt:bytesToB64(salt),
+      iv:bytesToB64(iv),
+      data:bytesToB64(new Uint8Array(encrypted))
+    };
+    downloadFile(`log-my-log-encrypted-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(payload,null,2),'application/json');
+    toast('Encrypted backup exported');
+  }catch(err){
+    console.error(err); toast('Could not create encrypted backup');
+  }
+}
+async function importEncryptedBackup(file){
+  const password=$('#backupPassword')?.value||'';
+  if(password.length<8){ toast('Enter the backup password first'); return; }
+  try{
+    const parsed=JSON.parse(await file.text());
+    if(parsed.format!=='log-my-log-encrypted') throw new Error('Wrong backup format');
+    const salt=b64ToBytes(parsed.salt), iv=b64ToBytes(parsed.iv), data=b64ToBytes(parsed.data);
+    const key=await deriveBackupKey(password,salt);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,data);
+    const payload=JSON.parse(new TextDecoder().decode(plain));
+    if(!Array.isArray(payload.entries)) throw new Error('No entries');
+    await bulkSave(payload.entries);
+    await refresh();
+    toast(`Imported ${payload.entries.length} entries`);
+  }catch(err){
+    console.error(err); toast('Could not decrypt backup — check the password');
+  }finally{
+    if($('#importEncryptedInput')) $('#importEncryptedInput').value='';
+  }
+}
+
+function bindV3AccountEvents(){
+  $('#openAccountBtn')?.addEventListener('click',()=>showScreen('account'));
+  $('#saveDeviceNameBtn')?.addEventListener('click',saveDeviceName);
+  $('#configureSyncBtn')?.addEventListener('click',()=>$('#syncConfigDialog')?.showModal());
+  $('#exportEncryptedBtn')?.addEventListener('click',exportEncryptedBackup);
+  $('#importEncryptedInput')?.addEventListener('change',e=>{
+    const file=e.target.files?.[0];
+    if(file) importEncryptedBackup(file);
+  });
+}
 
 function isStandalone(){
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -685,7 +789,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.0');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.0.3');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{
@@ -754,6 +858,8 @@ navigator.serviceWorker?.addEventListener('controllerchange',()=>{
   location.reload();
 });
 
+bindV3AccountEvents();
+ensureDeviceIdentity();
 updateConnectionUI();
 syncInstallUI();
 resetForm();

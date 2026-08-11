@@ -1,20 +1,10 @@
-# Log My Log v3.0
+# Log My Log v3.0.3
 
-V3 introduces a local-first account and sync architecture without forcing users to create an account.
+Hotfix: encrypted backup export now uses the app's existing downloadFile helper correctly. Encrypted import continues to merge entries through the existing IndexedDB bulkSave path.
 
-## Included in v3.0
-- Persistent device identity and device naming
-- Account & Sync screen
-- Optional cloud-sync adapter boundary
-- Password-protected encrypted backups using Web Crypto (PBKDF2 + AES-GCM)
-- Encrypted backup restore
-- Existing local IndexedDB workflow remains the default
-- Existing v2 logs remain compatible
+# Log My Log v3.0.2
 
-## Cloud sync
-The app is structurally ready for cloud sync, but this build intentionally does not embed a cloud-provider project URL/key. The current static GitHub Pages deployment remains fully functional without any backend.
-
-A suitable next connection is Supabase using its public client key with authentication and row-level security. Do not put a Supabase service-role key or other server secret into this PWA.
+Rebuilt from stable v2.4.1. Fixes V3 startup so existing IndexedDB history loads normally and Account & Sync controls are fully wired.
 
 # Log My Log v2.4.1
 

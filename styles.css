@@ -437,3 +437,34 @@ dialog{border:0;border-radius:20px;padding:0;max-width:420px;width:calc(100% - 3
   .sync-metrics{grid-template-columns:1fr 1fr}
   .sync-metrics>div:last-child{grid-column:1/-1}
 }
+
+
+/* ===== V3.2 dependable sync ===== */
+.sync-health-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sync-health{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border-radius:999px;background:#edf1ee}
+.sync-health-dot{width:9px;height:9px;border-radius:50%;background:#6d776f}
+.sync-health.healthy{background:#e3f1e7;color:#23643e}.sync-health.healthy .sync-health-dot{background:#2c8b57}
+.sync-health.warning{background:#fff0df;color:#8a511f}.sync-health.warning .sync-health-dot{background:#c8792d}
+.sync-health.working{background:#e8eef7;color:#365a83}.sync-health.working .sync-health-dot{background:#4778ad}
+.sync-health.local{background:#ebe8df;color:#647068}
+.sync-metrics-four{grid-template-columns:repeat(4,1fr)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--line);border-radius:16px;padding:13px;background:#faf9f4}
+.toggle-row span{display:grid;gap:3px}.toggle-row small{color:var(--muted);font-weight:500}
+.toggle-row input{width:22px;height:22px}
+.diagnostics-card{padding:0;overflow:hidden}
+.diagnostics-card details{margin:0}
+.diagnostics-card summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:20px 22px}
+.diagnostics-card summary::-webkit-details-marker{display:none}
+.diagnostics-card summary>span:first-child{display:grid;gap:3px}.diagnostics-card summary small{color:var(--muted)}
+.diagnostics-body{padding:0 22px 22px}
+.diagnostics-grid{display:grid;grid-template-columns:1fr 1fr;margin:0;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.diagnostics-grid>div{display:grid;grid-template-columns:1fr auto;gap:12px;padding:11px 13px;border-bottom:1px solid var(--line)}
+.diagnostics-grid>div:nth-child(odd){border-right:1px solid var(--line)}
+.diagnostics-grid dt{color:var(--muted)}.diagnostics-grid dd{margin:0;font-weight:800;text-align:right}
+.account-management-list{display:grid}
+.account-management-list>div{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+.account-management-list>div:last-child{border-bottom:0}.account-management-list p{margin:3px 0 0}
+.danger-outline-btn{border:1px solid var(--danger);background:transparent;color:var(--danger);border-radius:14px;padding:12px 15px;font-weight:800}
+.auth-link-btn{justify-self:start;padding-left:0}
+@media(max-width:800px){.sync-metrics-four{grid-template-columns:1fr 1fr}.diagnostics-grid{grid-template-columns:1fr}.diagnostics-grid>div:nth-child(odd){border-right:0}}
+@media(max-width:620px){.account-management-list>div{grid-template-columns:1fr}.account-management-list button{width:100%}.sync-health-row{align-items:flex-start;flex-direction:column}}

@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.1" />
+  <link rel="stylesheet" href="styles.css?v=3.2" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -322,9 +322,9 @@
       <section id="screen-account" class="screen" aria-labelledby="accountTitle">
         <div class="section-head account-title-row">
           <div>
-            <p class="kicker">V3.1</p>
+            <p class="kicker">V3.2</p>
             <h2 id="accountTitle">Account & sync</h2>
-            <p class="muted">Your logs still work locally. Signing in adds private multi-device sync.</p>
+            <p class="muted">Local-first, automatic sync, and clear control over what lives where.</p>
           </div>
           <span class="sync-status-pill local" id="syncStatusPill">Local only</span>
         </div>
@@ -334,7 +334,7 @@
             <section class="card auth-card">
               <p class="kicker">Optional account</p>
               <h3>Sign in</h3>
-              <p class="muted">Use the same account on another device to bring your logs with you.</p>
+              <p class="muted">Use one account across devices. Your local logs remain on this device.</p>
               <div class="auth-fields">
                 <label>Email
                   <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
@@ -347,6 +347,7 @@
                 <button type="button" id="signInBtn" class="primary-btn">Sign in</button>
                 <button type="button" id="signUpBtn" class="secondary-btn">Create account</button>
               </div>
+              <button type="button" id="forgotPasswordBtn" class="text-btn auth-link-btn">Forgot password?</button>
               <p class="hint" id="authMessage">Creating an account never removes the logs already stored on this device.</p>
             </section>
 
@@ -378,16 +379,24 @@
                 </div>
                 <span class="cloud-connected-mark">✓</span>
               </div>
-              <div class="sync-metrics">
+
+              <div class="sync-health-row">
+                <div class="sync-health" id="syncHealthBadge"><span class="sync-health-dot"></span><strong>Checking…</strong></div>
+                <span class="muted" id="syncLastDetail">Last sync: never</span>
+              </div>
+
+              <div class="sync-metrics sync-metrics-four">
                 <div><span>Local logs</span><strong id="localLogCount">0</strong></div>
                 <div><span>Cloud logs</span><strong id="cloudLogCount">—</strong></div>
-                <div><span>Last sync</span><strong id="lastSyncLabel">Never</strong></div>
+                <div><span>Pending</span><strong id="pendingSyncCount">0</strong></div>
+                <div><span>Conflicts</span><strong id="conflictCount">0</strong></div>
               </div>
+
               <div class="sync-actions">
                 <button type="button" id="syncNowBtn" class="primary-btn">Sync now</button>
                 <button type="button" id="signOutBtn" class="secondary-btn">Sign out</button>
               </div>
-              <p class="hint" id="syncMessage">Local IndexedDB remains available offline. Sync merges your account data when you're online.</p>
+              <p class="hint" id="syncMessage">Automatic sync runs when the app opens, comes back online, or you save a log.</p>
             </section>
 
             <section class="card account-card">
@@ -397,12 +406,56 @@
               </div>
               <dl class="account-details">
                 <div><dt>Device ID</dt><dd><code id="signedInDeviceId">—</code></dd></div>
-                <div><dt>Local storage</dt><dd>IndexedDB</dd></div>
-                <div><dt>Cloud</dt><dd>Supabase + RLS</dd></div>
+                <div><dt>Storage</dt><dd>IndexedDB + Supabase</dd></div>
+                <div><dt>Auto sync</dt><dd id="autoSyncLabel">On</dd></div>
               </dl>
-              <p class="muted small-copy">Only rows belonging to your authenticated user ID can be accessed through the cloud API.</p>
+              <label class="toggle-row">
+                <span><strong>Automatic sync</strong><small>Sync on launch, reconnect, save and edit.</small></span>
+                <input type="checkbox" id="autoSyncToggle" checked />
+              </label>
             </section>
           </div>
+
+          <section class="card diagnostics-card">
+            <details>
+              <summary>
+                <span><strong>Sync details</strong><small>Diagnostics for troubleshooting.</small></span>
+                <span class="details-plus">+</span>
+              </summary>
+              <div class="diagnostics-body">
+                <dl class="diagnostics-grid">
+                  <div><dt>Account</dt><dd id="diagAccount">—</dd></div>
+                  <div><dt>Device</dt><dd id="diagDevice">—</dd></div>
+                  <div><dt>Local logs</dt><dd id="diagLocal">0</dd></div>
+                  <div><dt>Cloud logs</dt><dd id="diagCloud">—</dd></div>
+                  <div><dt>Pending deletes</dt><dd id="diagPendingDeletes">0</dd></div>
+                  <div><dt>Pending uploads</dt><dd id="diagPendingUploads">0</dd></div>
+                  <div><dt>Last successful sync</dt><dd id="diagLastSync">Never</dd></div>
+                  <div><dt>Status</dt><dd id="diagStatus">Checking…</dd></div>
+                </dl>
+              </div>
+            </details>
+          </section>
+
+          <section class="card account-management-card">
+            <div class="section-head">
+              <div><p class="kicker">Account</p><h3>Manage account</h3></div>
+            </div>
+            <div class="account-management-list">
+              <div>
+                <div><strong>Change password</strong><p class="muted">Send yourself a secure password-reset email.</p></div>
+                <button type="button" id="changePasswordBtn" class="secondary-btn">Send reset email</button>
+              </div>
+              <div>
+                <div><strong>Change email</strong><p class="muted">Supabase will require confirmation for the new address.</p></div>
+                <button type="button" id="changeEmailBtn" class="secondary-btn">Change email</button>
+              </div>
+              <div>
+                <div><strong>Clear cloud data</strong><p class="muted">Delete cloud copies but leave local logs on this device.</p></div>
+                <button type="button" id="clearCloudBtn" class="danger-outline-btn">Clear cloud</button>
+              </div>
+            </div>
+          </section>
         </div>
 
         <section class="card">
@@ -419,14 +472,22 @@
           </div>
           <p class="hint">If you forget the password, the encrypted backup cannot be recovered.</p>
         </section>
-
-        <section class="card sync-architecture-card">
-          <p class="kicker">How sync works</p>
-          <h3>Local first, cloud second</h3>
-          <div class="architecture-flow"><span>IndexedDB</span><b>↔</b><span>Secure sync</span><b>↔</b><span>Supabase</span></div>
-          <p class="muted small-copy">The local database remains the app's offline store. Sync uploads and downloads account-owned rows using their existing UUIDs.</p>
-        </section>
       </section>
+
+      <dialog id="changeEmailDialog">
+        <form method="dialog" class="dialog-card">
+          <p class="kicker">Account</p>
+          <h3>Change email</h3>
+          <label>New email
+            <input id="newEmailInput" type="email" autocomplete="email" placeholder="new@example.com" />
+          </label>
+          <p class="hint">A confirmation message may be sent before the change takes effect.</p>
+          <div class="dialog-actions">
+            <button value="cancel" class="secondary-btn">Cancel</button>
+            <button type="button" id="confirmChangeEmailBtn" class="primary-btn">Update email</button>
+          </div>
+        </form>
+      </dialog>
 
       <section id="screen-report" class="screen" aria-labelledby="reportTitle">
         <div class="report-page-head">
@@ -490,7 +551,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v3.1</span></h3>
+              <h3>Log My Log <span class="version-pill">v3.2</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -578,6 +639,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="app.js?v=3.1"></script>
+  <script type="module" src="app.js?v=3.2"></script>
 </body>
 </html>

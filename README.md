@@ -1,3 +1,24 @@
+# Log My Log v3.2
+
+V3.2 is the sync-reliability release.
+
+## Improvements
+- Automatic sync after sign-in, app startup, reconnect, and local save/edit
+- Manual Sync Now remains available
+- Automatic sync can be switched off per device
+- Clear sync health status: synced, offline/pending, syncing, conflict-resolved
+- Pending upload/delete counts
+- Sync diagnostics panel
+- Stronger conflict detection using a per-entry last-synced shadow
+- Same-ID edits on two devices are detected as conflicts; the newer edit wins and the UI reports that a conflict was resolved
+- Password reset from signed-out and signed-in states
+- Change-email flow
+- Clear Cloud Data action that leaves local IndexedDB intact and disables automatic sync
+- Existing encrypted backups remain available
+- Existing Supabase schema and RLS policies are unchanged
+
+The local IndexedDB database remains the offline store and source of continuity. Supabase is the authenticated synchronization layer.
+
 # Log My Log v3.1
 
 V3.1 connects the local-first PWA to Supabase.

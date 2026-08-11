@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.5.1';
+const APP_VERSION = '4.1.1';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -13,7 +13,11 @@ const CLOUD_DELETE_QUEUE_KEY = 'log-my-log-cloud-delete-queue';
 const AUTO_SYNC_KEY = 'log-my-log-auto-sync';
 const CLOUD_SHADOW_KEY = 'log-my-log-cloud-shadow';
 const WELCOME_TIP_KEY = 'log-my-log-welcome-tip-v3.3';
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null, cloudConflicts: 0, pendingUploads: 0 };
+const REMINDER_SETTINGS_KEY = 'log-my-log-reminders-v4.1';
+const REMINDER_LAST_SHOWN_KEY = 'log-my-log-reminder-last-shown';
+const CAPTCHA_SITE_KEY = String(globalThis.LOG_MY_LOG_CAPTCHA_SITE_KEY||'').trim();
+let captchaWidgetId = null;
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, insightDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null, cloudConflicts: 0, pendingUploads: 0 };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -64,6 +68,8 @@ function showScreen(name){
   $$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
   if(name==='history') renderHistory();
   if(name==='stats') renderStats();
+  if(name==='insights') renderInsights();
+  if(name==='reminders') renderReminderSettings();
   if(name==='report') renderHealthReport();
   if(name==='account') renderAccount();
   scrollTo({top:0,behavior:'smooth'});
@@ -463,6 +469,104 @@ function printHealthReport(){
   win.document.close();
 }
 
+
+function entriesBetweenDaysAgo(fromDaysAgo,toDaysAgo=0){
+  const now=Date.now(),start=now-fromDaysAgo*86400000,end=now-toDaysAgo*86400000;
+  return state.entries.filter(e=>{const t=new Date(e.timestamp).getTime();return t>=start&&t<end;});
+}
+function v4Average(values){
+  const nums=values.filter(v=>Number.isFinite(v));
+  return nums.length?nums.reduce((s,v)=>s+v,0)/nums.length:null;
+}
+function v4Percent(part,total){return total?Math.round(part/total*100):0;}
+function baselineModel(days=30){
+  const recent=entriesBetweenDaysAgo(days,0);
+  const baseline=entriesBetweenDaysAgo(days*4,days);
+  const stats=entries=>({
+    n:entries.length,
+    avgType:v4Average(entries.map(e=>Number(e.bristolType))),
+    perWeek:entries.length/(days/7),
+    idealPct:v4Percent(entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length,entries.length),
+    highUrgencyPct:v4Percent(entries.filter(e=>e.urgency==='High').length,entries.length),
+    difficultPct:v4Percent(entries.filter(e=>e.ease==='Difficult').length,entries.length)
+  });
+  return {days,recent,baseline,recentStats:stats(recent),baselineStats:stats(baseline)};
+}
+function v4TimeBucket(hour){
+  if(hour>=5&&hour<9)return 'Early morning';
+  if(hour>=9&&hour<12)return 'Morning';
+  if(hour>=12&&hour<17)return 'Afternoon';
+  if(hour>=17&&hour<22)return 'Evening';
+  return 'Overnight';
+}
+function v4TopMode(values){
+  if(!values.length)return null;
+  const m={};values.forEach(v=>m[v]=(m[v]||0)+1);
+  return Object.entries(m).sort((x,y)=>y[1]-x[1])[0]?.[0]||null;
+}
+function v4TagEntries(entries,tag){
+  return entries.filter(e=>(e.tags||[]).map(x=>String(x).toLowerCase()).includes(tag));
+}
+function renderInsights(){
+  if(!$('#baselineSummary'))return;
+  const m=baselineModel(state.insightDays),r=m.recentStats,b=m.baselineStats;
+  $('#baselineWindowLabel').textContent=`Last ${m.days} days compared with the previous ${m.days*3} days`;
+
+  const cards=[
+    ['Frequency',r.n?`${r.perWeek.toFixed(1)}/wk`:'—',b.n?`${r.perWeek-b.perWeek>=0?'+':''}${(r.perWeek-b.perWeek).toFixed(1)}/wk vs usual`:'Building baseline'],
+    ['Average type',r.avgType!==null?r.avgType.toFixed(1):'—',b.avgType!==null?`${r.avgType-b.avgType>=0?'+':''}${(r.avgType-b.avgType).toFixed(1)} vs usual`:'Building baseline'],
+    ['Types 3–5',r.n?`${r.idealPct}%`:'—',b.n?`${r.idealPct-b.idealPct>=0?'+':''}${r.idealPct-b.idealPct}% vs usual`:'Building baseline'],
+    ['High urgency',r.n?`${r.highUrgencyPct}%`:'—',b.n?`${r.highUrgencyPct-b.highUrgencyPct>=0?'+':''}${r.highUrgencyPct-b.highUrgencyPct}% vs usual`:'Building baseline']
+  ];
+  $('#baselineSummary').innerHTML=cards.map(([label,value,sub])=>`<article class="baseline-card"><span>${label}</span><strong>${value}</strong><small>${sub}</small></article>`).join('');
+
+  const changes=[];
+  if(!r.n){
+    changes.push(['Not enough recent data','Add a few logs in this period and comparisons will appear here.','neutral']);
+  }else if(!b.n){
+    changes.push(['Your baseline is still forming',`You have ${r.n} recent log${r.n===1?'':'s'}. Keep logging and Log My Log will learn your normal range.`,'neutral']);
+  }else{
+    const typeDiff=r.avgType-b.avgType;
+    if(Math.abs(typeDiff)>=.35)changes.push([typeDiff>0?'Average type is higher':'Average type is lower',`Recent average Type ${r.avgType.toFixed(1)} versus your baseline of ${b.avgType.toFixed(1)}.`,typeDiff>0?'up':'down']);
+    const freqDiff=r.perWeek-b.perWeek;
+    if(Math.abs(freqDiff)>=1)changes.push([freqDiff>0?'You are logging more often':'You are logging less often',`${r.perWeek.toFixed(1)} per week recently versus ${b.perWeek.toFixed(1)} in your baseline.`,freqDiff>0?'up':'down']);
+    const urgDiff=r.highUrgencyPct-b.highUrgencyPct;
+    if(Math.abs(urgDiff)>=15)changes.push([urgDiff>0?'High urgency is showing up more':'High urgency is showing up less',`${r.highUrgencyPct}% recently versus ${b.highUrgencyPct}% in your baseline.`,urgDiff>0?'up':'down']);
+    const easeDiff=r.difficultPct-b.difficultPct;
+    if(Math.abs(easeDiff)>=15)changes.push([easeDiff>0?'Difficult passage is more common':'Difficult passage is less common',`${r.difficultPct}% recently versus ${b.difficultPct}% in your baseline.`,easeDiff>0?'up':'down']);
+    if(!changes.length)changes.push(['Things look fairly steady','Your recent frequency, stool type, urgency and ease are close to your personal baseline.','steady']);
+  }
+  $('#changeInsights').innerHTML=changes.map(([title,text,tone])=>`<article class="change-insight ${tone}"><div class="change-dot"></div><div><strong>${title}</strong><p>${text}</p></div></article>`).join('');
+
+  const recent=m.recent;
+  const weekend=recent.filter(e=>[0,6].includes(new Date(e.timestamp).getDay()));
+  const weekday=recent.filter(e=>![0,6].includes(new Date(e.timestamp).getDay()));
+  const weekendAvg=v4Average(weekend.map(e=>Number(e.bristolType))),weekdayAvg=v4Average(weekday.map(e=>Number(e.bristolType)));
+  const times=recent.map(e=>v4TimeBucket(new Date(e.timestamp).getHours()));
+  const commonTime=v4TopMode(times);
+  const locations=recent.map(e=>(e.location||'').trim()).filter(Boolean),commonLocation=v4TopMode(locations);
+  const rhythm=[
+    ['Most common time',commonTime||'Not enough data',commonTime?`${v4Percent(times.filter(x=>x===commonTime).length,times.length)}% of recent logs`:'Keep logging to build a pattern'],
+    ['Weekend shift',(weekend.length>=2&&weekday.length>=2)?(Math.abs(weekendAvg-weekdayAvg)<.25?'Very similar':`Type ${weekendAvg.toFixed(1)} weekends`):'Building pattern',(weekend.length>=2&&weekday.length>=2)?(Math.abs(weekendAvg-weekdayAvg)<.25?'Weekends are close to weekdays':`${weekendAvg-weekdayAvg>0?'Higher':'Lower'} than weekday average Type ${weekdayAvg.toFixed(1)}`):'Needs a few weekday and weekend logs'],
+    ['Most common location',commonLocation||'Not enough data',commonLocation?`${v4Percent(locations.filter(x=>x===commonLocation).length,locations.length)}% of logs with a location`:'Add locations if useful to you']
+  ];
+  $('#rhythmInsights').innerHTML=rhythm.map(([label,value,sub])=>`<article class="v4-insight-card"><span>${label}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(sub)}</small></article>`).join('');
+
+  const tags=['coffee','alcohol','spicy','dairy','high-fibre','takeaway','bloating','cramps','gas','nausea'];
+  const labels={coffee:'☕ Coffee',alcohol:'🍷 Alcohol',spicy:'🌶️ Spicy',dairy:'🥛 Dairy','high-fibre':'🌾 High fibre',takeaway:'🥡 Takeaway',bloating:'Bloating',cramps:'Cramps',gas:'Gas',nausea:'Nausea'};
+  const overallAvg=v4Average(recent.map(e=>Number(e.bristolType)));
+  const context=tags.map(tag=>{
+    const matched=v4TagEntries(recent,tag);
+    if(matched.length<3||overallAvg===null)return null;
+    const avg=v4Average(matched.map(e=>Number(e.bristolType)));
+    return {tag,n:matched.length,avg,diff:avg-overallAvg};
+  }).filter(Boolean).sort((x,y)=>Math.abs(y.diff)-Math.abs(x.diff)).slice(0,6);
+
+  $('#contextInsightsV4').innerHTML=context.length
+    ? context.map(x=>`<article class="v4-insight-card"><span>${labels[x.tag]||escapeHtml(x.tag)}</span><strong>Avg Type ${x.avg.toFixed(1)}</strong><small>${x.diff>=0?'+':''}${x.diff.toFixed(1)} versus your recent average · ${x.n} tagged logs</small></article>`).join('')
+    : '<div class="empty"><strong>Not enough repeated context yet.</strong><span>Use food, drink and symptom chips consistently and comparisons will appear here.</span></div>';
+}
+
 function renderStats(){
   const entries=statsEntries();
   const n=entries.length;
@@ -549,7 +653,7 @@ async function removeEntry(id){
     flushCloudDeletions().then(()=>refreshCloudCount()).catch(err=>console.error('Cloud delete pending',err));
   }
 }
-async function refresh(){ state.entries=await getEntries(); renderHome(); renderHistory(); renderStats(); }
+async function refresh(){ state.entries=await getEntries(); renderHome(); renderHistory(); renderStats(); if($('#screen-insights')?.classList.contains('active'))renderInsights(); }
 
 async function confirmAction(title,message){ const d=$('#confirmDialog'); $('#dialogTitle').textContent=title; $('#dialogMessage').textContent=message; d.showModal(); return new Promise(resolve=>{d.onclose=()=>resolve(d.returnValue==='confirm');}); }
 function downloadFile(name,content,type){ const blob=new Blob([content],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000); }
@@ -597,6 +701,13 @@ $$('.segmented-control').forEach(control=>{
 
 $$('.context-chips button').forEach(button=>button.addEventListener('click',()=>toggleContextTag(button.dataset.tag)));
 $('#tags').addEventListener('input',syncContextChips);
+
+$$('#insightsRange button').forEach(button=>button.addEventListener('click',()=>{
+  state.insightDays=Number(button.dataset.insightDays);
+  $$('#insightsRange button').forEach(b=>b.classList.toggle('active',b===button));
+  renderInsights();
+}));
+
 $$('#statsRange button').forEach(button=>button.addEventListener('click',()=>{
   state.statsDays=Number(button.dataset.days);
   $$('#statsRange button').forEach(b=>b.classList.toggle('active',b===button));
@@ -631,7 +742,8 @@ $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!
 $('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup. If signed in, these logs will also be removed from your cloud account on the next sync.'))return; state.entries.forEach(e=>queueCloudDeletion(e.id)); await clearEntries(); await refresh(); if(state.cloudUser&&navigator.onLine)flushCloudDeletions().then(()=>refreshCloudCount()).catch(console.error); toast('All local data deleted'); };
 
 
-function friendlyCloudError(err,fallback='Something went wrong. Please try again.'){const raw=String(err?.message||'').toLowerCase();if(!navigator.onLine)return 'You appear to be offline. Your local logs are safe.';if(raw.includes('invalid login')||raw.includes('invalid credentials'))return 'That email or password was not recognised.';if(raw.includes('email not confirmed'))return 'Please confirm your email address before signing in.';if(raw.includes('rate limit')||raw.includes('too many'))return 'Too many attempts. Please wait a little while and try again.';if(raw.includes('network')||raw.includes('fetch'))return 'Could not reach secure cloud storage. Your local logs are safe.';return fallback;}
+function friendlyCloudError(err,fallback='Something went wrong. Please try again.'){const raw=String(err?.message||'').toLowerCase();if(!navigator.onLine)return 'You appear to be offline. Your local logs are safe.';if(raw.includes('invalid login')||raw.includes('invalid credentials'))return 'That email or password was not recognised.';if(raw.includes('email not confirmed'))return 'Please confirm your email address before signing in.';if(raw.includes('captcha'))return 'The bot check was not accepted. Please complete it again.';
+  if(raw.includes('rate limit')||raw.includes('too many'))return 'Too many attempts. Please wait a little while and try again.';if(raw.includes('network')||raw.includes('fetch'))return 'Could not reach secure cloud storage. Your local logs are safe.';return fallback;}
 function setBusy(button,busy,text){if(!button)return;if(busy){button.dataset.originalText=button.textContent;button.textContent=text;button.disabled=true;button.setAttribute('aria-busy','true');}else{button.textContent=button.dataset.originalText||button.textContent;button.disabled=false;button.removeAttribute('aria-busy');}}
 // ===== V3.2 dependable Supabase sync =====
 const V3_KEYS={
@@ -828,23 +940,67 @@ async function initialiseCloudAuth(){
     },0);
   });
 }
+
+function captchaConfigured(){
+  return Boolean(CAPTCHA_SITE_KEY);
+}
+function captchaToken(){
+  return document.querySelector('#signupCaptcha input[name="cf-turnstile-response"]')?.value
+    || document.querySelector('input[name="cf-turnstile-response"]')?.value
+    || '';
+}
+function resetSignupCaptcha(){
+  if(globalThis.turnstile&&captchaWidgetId!==null){
+    try{globalThis.turnstile.reset(captchaWidgetId);}catch(err){console.error(err);}
+  }
+}
+function renderSignupCaptcha(){
+  const wrap=$('#signupCaptchaWrap'),host=$('#signupCaptcha');
+  if(!wrap||!host)return;
+  wrap.hidden=!captchaConfigured();
+  if(!captchaConfigured()){
+    if($('#captchaStatus'))$('#captchaStatus').textContent='Bot protection is not configured yet.';
+    return;
+  }
+  const attempt=()=>{
+    if(captchaWidgetId!==null)return;
+    if(!globalThis.turnstile){setTimeout(attempt,150);return;}
+    try{
+      captchaWidgetId=globalThis.turnstile.render('#signupCaptcha',{
+        sitekey:CAPTCHA_SITE_KEY,
+        theme:'light',
+        callback:()=>{if($('#captchaStatus'))$('#captchaStatus').textContent='Check complete.';},
+        'expired-callback':()=>{if($('#captchaStatus'))$('#captchaStatus').textContent='The check expired. Please complete it again.';},
+        'error-callback':()=>{if($('#captchaStatus'))$('#captchaStatus').textContent='The bot check could not load. Please try again.';}
+      });
+    }catch(err){console.error(err);}
+  };
+  attempt();
+}
+
 async function signUpCloud(){
   if(!supabaseClient)return setAuthMessage('Cloud library is unavailable.',true);
   const email=$('#authEmail')?.value.trim();
   const password=$('#authPassword')?.value||'';
   if(!email)return setAuthMessage('Enter your email address.',true);
   if(password.length<8)return setAuthMessage('Use a password of at least 8 characters.',true);
+  const captcha=captchaToken();
+  if(captchaConfigured()&&!captcha)return setAuthMessage('Complete the bot check before creating the account.',true);
   setAuthMessage('Creating your account…');
   try{
     const redirectTo=`${location.origin}${location.pathname}`;
-    const {data,error}=await supabaseClient.auth.signUp({email,password,options:{emailRedirectTo:redirectTo}});
+    const {data,error}=await supabaseClient.auth.signUp({
+      email,
+      password,
+      options:{emailRedirectTo:redirectTo,...(captcha?{captchaToken:captcha}:{})}
+    });
     if(error)throw error;
     if(data.session){
       state.cloudUser=data.user; renderAccount();
       setSyncMessage('Account created. Automatic sync will merge your local history.');
       if(autoSyncEnabled())syncNow({quiet:true});
     }else setAuthMessage('Check your email to confirm the account, then return here and sign in.');
-  }catch(err){console.error(err);setAuthMessage(friendlyCloudError(err,'Could not create the account. Please try again.'),true);}
+  }catch(err){console.error(err);setAuthMessage(friendlyCloudError(err,'Could not create the account. Please try again.'),true);}finally{resetSignupCaptcha();}
 }
 async function signInCloud(){
   if(!supabaseClient)return setAuthMessage('Cloud library is unavailable.',true);
@@ -1191,7 +1347,7 @@ function populateProfileRegions(selected=''){
 }
 async function loadProfile(){
   if(!state.cloudUser){
-    for(const id of ['profileFirstName','profileSurname','profileNickname','profileMobile']){
+    for(const id of ['profileFirstName','profileSurname','profileNickname','profileMobile','profileYearOfBirth']){
       if($(`#${id}`))$(`#${id}`).value='';
     }
     if($('#profileCountry'))$('#profileCountry').value='';
@@ -1200,7 +1356,7 @@ async function loadProfile(){
   }
   try{
     const {data,error}=await supabaseClient.from('profiles')
-      .select('first_name,surname,nickname,mobile,country,region')
+      .select('first_name,surname,nickname,mobile,year_of_birth,country,region')
       .eq('id',state.cloudUser.id)
       .maybeSingle();
     if(error)throw error;
@@ -1209,6 +1365,7 @@ async function loadProfile(){
     if($('#profileSurname'))$('#profileSurname').value=profile.surname||'';
     if($('#profileNickname'))$('#profileNickname').value=profile.nickname||'';
     if($('#profileMobile'))$('#profileMobile').value=profile.mobile||'';
+    if($('#profileYearOfBirth'))$('#profileYearOfBirth').value=profile.year_of_birth||'';
     if($('#profileCountry'))$('#profileCountry').value=profile.country||'';
     populateProfileRegions(profile.region||'');
     if($('#profileMessage'))$('#profileMessage').textContent=data
@@ -1221,6 +1378,13 @@ async function loadProfile(){
 }
 async function saveProfile(){
   if(!state.cloudUser){toast('Sign in to save your profile');return;}
+  const currentYear=new Date().getFullYear();
+  const yearRaw=$('#profileYearOfBirth')?.value.trim()||'';
+  const yearOfBirth=yearRaw?Number(yearRaw):null;
+  if(yearOfBirth!==null&&(!Number.isInteger(yearOfBirth)||yearOfBirth<1900||yearOfBirth>currentYear)){
+    if($('#profileMessage'))$('#profileMessage').textContent=`Enter a year between 1900 and ${currentYear}, or leave it blank.`;
+    return;
+  }
   const btn=$('#saveProfileBtn');setBusy(btn,true,'Saving…');
   const profile={
     id:state.cloudUser.id,
@@ -1228,6 +1392,7 @@ async function saveProfile(){
     surname:$('#profileSurname')?.value.trim()||null,
     nickname:$('#profileNickname')?.value.trim()||null,
     mobile:$('#profileMobile')?.value.trim()||null,
+    year_of_birth:yearOfBirth,
     country:$('#profileCountry')?.value||null,
     region:$('#profileRegion')?.value||null,
     updated_at:new Date().toISOString()
@@ -1259,6 +1424,141 @@ async function deleteMyAccount(){
   }catch(err){console.error(err);if($('#deleteAccountMessage'))$('#deleteAccountMessage').textContent=friendlyCloudError(err,'Could not delete the account. Please try again.');}
   finally{setBusy(btn,false);}
 }
+
+function defaultReminderSettings(){
+  return {enabled:false,time:'19:00',days:[1,2,3,4,5,6,0],missedDay:true};
+}
+function loadReminderSettings(){
+  try{
+    return {...defaultReminderSettings(),...JSON.parse(localStorage.getItem(REMINDER_SETTINGS_KEY)||'{}')};
+  }catch{return defaultReminderSettings();}
+}
+function saveReminderSettings(settings){
+  localStorage.setItem(REMINDER_SETTINGS_KEY,JSON.stringify(settings));
+}
+function renderReminderSettings(){
+  if(!$('#reminderEnabled'))return;
+  const settings=loadReminderSettings();
+  $('#reminderEnabled').checked=Boolean(settings.enabled);
+  $('#reminderTime').value=settings.time||'19:00';
+  $('#missedDayNudge').checked=settings.missedDay!==false;
+  $$('#reminderDays button').forEach(btn=>{
+    const selected=(settings.days||[]).includes(Number(btn.dataset.day));
+    btn.classList.toggle('active',selected);
+    btn.setAttribute('aria-pressed',String(selected));
+  });
+  $('#reminderControls').classList.toggle('reminder-disabled',!settings.enabled);
+  renderNotificationPermission();
+  updateReminderStatus();
+}
+function currentReminderSettingsFromUI(){
+  return {
+    enabled:Boolean($('#reminderEnabled')?.checked),
+    time:$('#reminderTime')?.value||'19:00',
+    days:$$('#reminderDays button.active').map(btn=>Number(btn.dataset.day)),
+    missedDay:Boolean($('#missedDayNudge')?.checked)
+  };
+}
+function saveRemindersFromUI(){
+  const settings=currentReminderSettingsFromUI();
+  if(settings.enabled&&!settings.days.length){
+    $('#reminderStatus').textContent='Choose at least one reminder day.';
+    return;
+  }
+  saveReminderSettings(settings);
+  renderReminderSettings();
+  toast(settings.enabled?'Reminders saved':'Reminders turned off');
+}
+function renderNotificationPermission(){
+  const text=$('#notificationPermissionText'),button=$('#enableNotificationsBtn');
+  if(!text||!button)return;
+  if(!('Notification' in window)){
+    text.textContent='Browser notifications are not supported here. In-app nudges still work.';
+    button.hidden=true;return;
+  }
+  button.hidden=false;
+  if(Notification.permission==='granted'){
+    text.textContent='Notifications are enabled on this device.';
+    button.textContent='Enabled';
+    button.disabled=true;
+  }else if(Notification.permission==='denied'){
+    text.textContent='Notifications are blocked in the browser. In-app nudges still work.';
+    button.textContent='Blocked';
+    button.disabled=true;
+  }else{
+    text.textContent='Optional. Allows reminders while Log My Log is open.';
+    button.textContent='Enable notifications';
+    button.disabled=false;
+  }
+}
+async function requestReminderNotifications(){
+  if(!('Notification' in window))return toast('Notifications are not supported here');
+  try{
+    const result=await Notification.requestPermission();
+    renderNotificationPermission();
+    toast(result==='granted'?'Notifications enabled':'Notification permission was not enabled');
+  }catch(err){
+    console.error(err);toast('Could not request notification permission');
+  }
+}
+function todayHasLog(date=new Date()){
+  const key=dayKey(date);
+  return state.entries.some(e=>dayKey(e.timestamp)===key);
+}
+function selectedReminderDay(date,settings){
+  return (settings.days||[]).includes(date.getDay());
+}
+function minutesNow(date=new Date()){
+  return date.getHours()*60+date.getMinutes();
+}
+function reminderMinutes(settings){
+  const [h,m]=String(settings.time||'19:00').split(':').map(Number);
+  return (Number.isFinite(h)?h:19)*60+(Number.isFinite(m)?m:0);
+}
+function reminderShownKey(date=new Date()){
+  return dayKey(date);
+}
+function showReminderPrompt(title,body){
+  const today=reminderShownKey();
+  if(localStorage.getItem(REMINDER_LAST_SHOWN_KEY)===today)return;
+  localStorage.setItem(REMINDER_LAST_SHOWN_KEY,today);
+  if('Notification' in window&&Notification.permission==='granted'&&document.visibilityState==='visible'){
+    try{new Notification(title,{body,icon:'icons/icon-192.png',tag:'log-my-log-reminder'});}catch(err){console.error(err);}
+  }
+  toast(body);
+}
+function checkDueReminder(){
+  const settings=loadReminderSettings();
+  if(!settings.enabled)return;
+  const now=new Date();
+  if(!selectedReminderDay(now,settings))return;
+  if(todayHasLog(now))return;
+  if(minutesNow(now)<reminderMinutes(settings))return;
+  showReminderPrompt('Log My Log','No log recorded today — add one if there is anything worth tracking.');
+}
+function checkMissedDayNudge(){
+  const settings=loadReminderSettings();
+  if(!settings.enabled||settings.missedDay===false)return;
+  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  if(!selectedReminderDay(yesterday,settings)||todayHasLog(yesterday))return;
+  const key=`missed-${dayKey(yesterday)}`;
+  if(sessionStorage.getItem(key))return;
+  sessionStorage.setItem(key,'shown');
+  const status=$('#a11yStatus');if(status)status.textContent='Yesterday has no log recorded.';
+  setTimeout(()=>toast('Yesterday has no log recorded — that is fine. Add one only if you meant to.'),600);
+}
+function updateReminderStatus(){
+  const el=$('#reminderStatus');if(!el)return;
+  const s=loadReminderSettings();
+  if(!s.enabled){el.textContent='Reminders are off on this device.';return;}
+  const days=(s.days||[]).length===7?'every day':`${(s.days||[]).length} selected day${(s.days||[]).length===1?'':'s'}`;
+  el.textContent=`Reminder set for ${s.time} on ${days}.`;
+}
+function startReminderClock(){
+  checkDueReminder();
+  window.setInterval(checkDueReminder,60000);
+}
+
 function isStandalone(){
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
@@ -1321,7 +1621,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.5.1');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=4.1.1');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{
@@ -1392,6 +1692,20 @@ navigator.serviceWorker?.addEventListener('controllerchange',()=>{
 
 $('#dismissWelcomeTip')?.addEventListener('click',dismissWelcomeTip);
 renderWelcomeTip();
+$('#reminderEnabled')?.addEventListener('change',()=>{
+  $('#reminderControls')?.classList.toggle('reminder-disabled',!$('#reminderEnabled').checked);
+});
+$$('#reminderDays button').forEach(btn=>btn.addEventListener('click',()=>{
+  btn.classList.toggle('active');
+  btn.setAttribute('aria-pressed',String(btn.classList.contains('active')));
+}));
+$('#saveReminderBtn')?.addEventListener('click',saveRemindersFromUI);
+$('#enableNotificationsBtn')?.addEventListener('click',requestReminderNotifications);
+renderReminderSettings();
+renderSignupCaptcha();
+startReminderClock();
+setTimeout(checkMissedDayNudge,900);
+
 bindV3AccountEvents();
 ensureDeviceIdentity();
 initialiseCloudAuth();
@@ -1403,3 +1717,5 @@ refresh().then(()=>{
   setTimeout(()=>showOnboarding(false),250);
 });
 window.addEventListener('load',registerServiceWorker);
+
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){checkDueReminder();checkMissedDayNudge();}});

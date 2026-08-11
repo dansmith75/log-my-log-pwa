@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.5.1" />
+  <link rel="stylesheet" href="styles.css?v=4.1.1" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -56,7 +56,7 @@
           <p class="kicker">The daily debrief</p>
           <h3>Nothing to report yet</h3>
           <p class="muted">A few logs and this area will start spotting simple patterns.</p>
-        </section>
+        <div class="debrief-actions"><button type="button" class="text-btn light-text-btn" data-nav="insights">View insights →</button></div></section>
 
         <section class="card recent-card">
           <div class="section-head">
@@ -247,7 +247,45 @@
         <div id="historyList" class="log-list history-list"></div>
       </section>
 
-      <section id="screen-stats" class="screen" aria-labelledby="statsTitle">
+            <section id="screen-insights" class="screen" aria-labelledby="insightsTitle">
+        <div class="section-head insights-page-head">
+          <div>
+            <p class="kicker">Personal patterns</p>
+            <h2 id="insightsTitle">Your Normal</h2>
+            <p class="muted">Observations from your own history. Useful for pattern awareness, not diagnosis.</p>
+          </div>
+          <div class="range-switcher" id="insightsRange" aria-label="Insight comparison period">
+            <button type="button" data-insight-days="7">7D</button>
+            <button type="button" data-insight-days="30" class="active">30D</button>
+            <button type="button" data-insight-days="90">90D</button>
+          </div>
+        </div>
+
+        <div id="baselineSummary" class="baseline-grid"></div>
+
+        <section class="card">
+          <div class="section-head">
+            <div><p class="kicker">What changed?</p><h3>Recent vs your baseline</h3></div>
+            <span class="muted" id="baselineWindowLabel"></span>
+          </div>
+          <div id="changeInsights" class="insight-list"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head"><div><p class="kicker">Rhythm</p><h3>When and where</h3></div></div>
+          <div id="rhythmInsights" class="insight-card-grid"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <div><p class="kicker">Context</p><h3>What shows up around your logs?</h3></div>
+            <span class="muted">descriptive only</span>
+          </div>
+          <div id="contextInsightsV4" class="insight-card-grid"></div>
+        </section>
+      </section>
+
+<section id="screen-stats" class="screen" aria-labelledby="statsTitle">
         <div class="stats-title-row">
           <div>
             <p class="kicker">Patterns</p>
@@ -351,6 +389,11 @@
                 <button type="button" id="signInBtn" class="primary-btn">Sign in</button>
                 <button type="button" id="signUpBtn" class="secondary-btn">Create account</button>
               </div>
+              <div id="signupCaptchaWrap" class="signup-captcha-wrap" hidden>
+                <p class="hint">One quick check helps us prevent automated account creation.</p>
+                <div id="signupCaptcha" class="cf-turnstile" data-theme="light"></div>
+                <p class="hint captcha-status" id="captchaStatus">Complete the check before creating your account.</p>
+              </div>
               <button type="button" id="forgotPasswordBtn" class="text-btn auth-link-btn">Forgot password?</button>
               <p class="hint" id="authMessage">Creating an account never removes the logs already stored on this device.</p>
             </section>
@@ -448,6 +491,7 @@
           <div class="profile-grid">
             <label>First name<input id="profileFirstName" type="text" autocomplete="given-name" maxlength="80" /></label>
             <label>Surname<input id="profileSurname" type="text" autocomplete="family-name" maxlength="80" /></label>
+            <label>Year of birth<input id="profileYearOfBirth" type="number" inputmode="numeric" min="1900" max="2100" step="1" placeholder="e.g. 1975" /></label>
             <label>Nickname<input id="profileNickname" type="text" autocomplete="nickname" maxlength="80" /></label>
             <label>Mobile number<input id="profileMobile" type="tel" autocomplete="tel" maxlength="40" placeholder="Optional" /></label>
             <label>Country
@@ -521,7 +565,7 @@
           <section class="card"><p class="kicker">Control</p><h3>Local and cloud are separate</h3><p class="muted">You can sign out, disable automatic sync, clear cloud copies, or delete local data independently.</p></section>
         </div>
         <section class="card advanced-card"><details><summary><span><strong>Advanced technical details</strong><small>Useful for troubleshooting.</small></span><span class="details-plus">+</span></summary><div class="advanced-body"><p class="muted">On-device storage uses IndexedDB. Optional account sync is provided by Supabase with Row Level Security. Encrypted backup uses PBKDF2 SHA-256 and AES-GCM.</p></div></details></section><section class="card about-version-card">
-          <div><span class="version-orb">3.5.1</span></div>
+          <div><span class="version-orb">4.1.1</span></div>
           <div><p class="kicker">Log My Log</p><h3>Built for useful data without unnecessary drama.</h3><p class="muted">This app is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></div>
         </section>
       </section>
@@ -619,7 +663,74 @@
         <div id="healthReport" class="health-report"></div>
       </section>
 
-      <section id="screen-settings" class="screen" aria-labelledby="settingsTitle">
+            <section id="screen-reminders" class="screen" aria-labelledby="remindersTitle">
+        <div class="report-page-head">
+          <div>
+            <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
+            <p class="kicker">Optional</p>
+            <h2 id="remindersTitle">Reminders</h2>
+            <p class="muted">Gentle prompts to keep your tracking useful. Everything here is optional.</p>
+          </div>
+        </div>
+
+        <section class="card reminder-card">
+          <div class="setting-item reminder-master-row">
+            <div>
+              <h3>Daily logging reminder</h3>
+              <p class="muted">Show a reminder on selected days when you have not logged yet.</p>
+            </div>
+            <label class="switch-control" aria-label="Enable reminders">
+              <input id="reminderEnabled" type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div id="reminderControls" class="reminder-controls">
+            <label>Reminder time
+              <input id="reminderTime" type="time" value="19:00" />
+            </label>
+
+            <fieldset class="reminder-days-fieldset">
+              <legend>Days</legend>
+              <div class="weekday-picker" id="reminderDays">
+                <button type="button" data-day="1">Mon</button>
+                <button type="button" data-day="2">Tue</button>
+                <button type="button" data-day="3">Wed</button>
+                <button type="button" data-day="4">Thu</button>
+                <button type="button" data-day="5">Fri</button>
+                <button type="button" data-day="6">Sat</button>
+                <button type="button" data-day="0">Sun</button>
+              </div>
+            </fieldset>
+
+            <label class="setting-check-row">
+              <span><strong>Missed-day nudge</strong><small>When you open Log My Log, mention yesterday if no log was recorded.</small></span>
+              <input id="missedDayNudge" type="checkbox" checked />
+            </label>
+
+            <div class="notification-permission-card">
+              <div>
+                <strong>Browser notifications</strong>
+                <p class="muted" id="notificationPermissionText">Optional. Allows reminders while Log My Log is open.</p>
+              </div>
+              <button type="button" id="enableNotificationsBtn" class="secondary-btn">Enable notifications</button>
+            </div>
+
+            <div class="reminder-actions">
+              <p class="hint" id="reminderStatus">Reminders are stored on this device.</p>
+              <button type="button" id="saveReminderBtn" class="primary-btn">Save reminders</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card reminder-explainer">
+          <p class="kicker">How it works</p>
+          <h3>Local and privacy-friendly</h3>
+          <p class="muted">Reminder settings stay on this device. When the app is open, Log My Log can show a browser notification at your chosen time. When you reopen the app, it can also flag a missed day. Browsers do not reliably allow a static PWA to schedule notifications while fully closed without a push service, so V4.1 does not pretend otherwise.</p>
+        </section>
+      </section>
+
+<section id="screen-settings" class="screen" aria-labelledby="settingsTitle">
         <div>
           <p class="kicker">Your data</p>
           <h2 id="settingsTitle">Settings & backup</h2>
@@ -644,6 +755,13 @@
           <div class="setting-item danger-zone">
             <div><h3>Danger zone</h3><p class="muted">Permanent local and cloud deletion controls.</p></div>
             <button type="button" class="primary-btn" data-nav="danger">Open</button>
+          </div>
+        </div>
+
+        <div class="card settings-list">
+          <div class="setting-item">
+            <div><h3>Reminders</h3><p class="muted">Optional logging prompts and missed-day nudges.</p></div>
+            <button type="button" class="primary-btn" data-nav="reminders">Open</button>
           </div>
         </div>
 
@@ -681,6 +799,7 @@
       <button class="nav-btn active" data-nav="home"><span>⌂</span>Home</button>
       <button class="nav-btn" data-nav="log"><span>＋</span>Log</button>
       <button class="nav-btn" data-nav="history"><span>☷</span>History</button>
+      <button class="nav-btn" data-nav="insights"><span>✦</span><small>Insights</small></button>
       <button class="nav-btn" data-nav="stats"><span>▥</span>Stats</button>
       <button class="nav-btn" data-nav="settings"><span>⚙</span>Settings</button>
     </nav>
@@ -745,6 +864,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="app.js?v=3.5.1"></script>
+  <script src="captcha-config.js"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script type="module" src="app.js?v=4.1.1"></script>
 </body>
 </html>

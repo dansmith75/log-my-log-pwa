@@ -629,3 +629,114 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .profile-actions .hint{margin:0}
 .account-delete-row{border-top:1px solid rgba(163,56,47,.18)}
 @media(max-width:680px){.profile-grid{grid-template-columns:1fr}.profile-actions{align-items:stretch;flex-direction:column}.profile-actions button{width:100%}}
+
+/* ===== V4.0 Personal Baseline & Smarter Insights ===== */
+.insights-page-head{align-items:flex-end}.baseline-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+.baseline-card{background:var(--paper);border:1px solid rgba(23,58,43,.08);border-radius:20px;padding:18px}.baseline-card span,.baseline-card small{display:block}.baseline-card span{font-size:.78rem;font-weight:850}.baseline-card strong{display:block;font-size:1.65rem;margin:6px 0 4px}.baseline-card small{color:var(--muted);line-height:1.35}
+.insight-list{display:grid;gap:10px}.change-insight{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}.change-insight p{margin:4px 0 0;color:var(--muted)}.change-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;background:#7a827c}.change-insight.up .change-dot{background:#c8792d}.change-insight.down .change-dot{background:#4778ad}.change-insight.steady .change-dot{background:#2c8b57}
+.insight-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.v4-insight-card{border:1px solid var(--line);border-radius:18px;padding:16px;background:#fff}.v4-insight-card span,.v4-insight-card small{display:block}.v4-insight-card span{font-size:.76rem;font-weight:850;color:var(--muted)}.v4-insight-card strong{display:block;font-size:1.08rem;margin:5px 0}.v4-insight-card small{color:var(--muted);line-height:1.4}
+.debrief-actions{margin-top:12px;border-top:1px solid rgba(255,255,255,.15);padding-top:8px}.light-text-btn{color:#fff!important;padding-left:0}
+@media(max-width:900px){.baseline-grid{grid-template-columns:1fr 1fr}.insight-card-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.insights-page-head{align-items:stretch;flex-direction:column}.baseline-grid,.insight-card-grid{grid-template-columns:1fr}.baseline-card strong{font-size:1.45rem}}
+
+
+/* ===== V4.1 layout consistency + reminders ===== */
+
+/* One shared page width for shell, screens and bottom navigation */
+:root{
+  --app-width:1240px;
+  --app-gutter:32px;
+}
+.app-shell{
+  width:min(var(--app-width),calc(100% - var(--app-gutter)));
+}
+main,
+.screen{
+  width:100%;
+  max-width:100%;
+}
+.screen > .card,
+.screen > .stats-grid,
+.screen > .home-grid,
+.screen > .baseline-grid,
+.screen > .report-page-head,
+.screen > .section-head,
+.screen > .log-screen-head,
+.screen > .quick-log-form,
+.screen > .about-grid,
+.screen > .account-grid{
+  width:100%;
+  max-width:100%;
+}
+.bottom-nav{
+  width:min(var(--app-width),calc(100% - var(--app-gutter)))!important;
+  max-width:var(--app-width)!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+}
+.bottom-nav .nav-btn{
+  min-width:0;
+  width:100%;
+}
+.bottom-nav .nav-btn span{
+  display:block;
+}
+.bottom-nav .nav-btn small{
+  white-space:nowrap;
+}
+
+/* Reminder controls */
+.reminder-master-row{align-items:center}
+.switch-control{position:relative;display:inline-flex;width:52px;height:30px;flex:0 0 auto}
+.switch-control input{opacity:0;width:0;height:0}
+.switch-slider{position:absolute;inset:0;background:#c9cec9;border-radius:999px;transition:.18s ease}
+.switch-slider::before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;background:white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.15);transition:.18s ease}
+.switch-control input:checked + .switch-slider{background:var(--ink)}
+.switch-control input:checked + .switch-slider::before{transform:translateX(22px)}
+.reminder-controls{display:grid;gap:18px;margin-top:16px}
+.reminder-controls.reminder-disabled{opacity:.58}
+.reminder-days-fieldset{border:0;padding:0;margin:0}
+.reminder-days-fieldset legend{font-weight:800;margin-bottom:9px}
+.weekday-picker{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.weekday-picker button{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 6px;font-weight:800}
+.weekday-picker button.active{background:var(--ink);color:white;border-color:var(--ink)}
+.setting-check-row{display:flex;align-items:center;justify-content:space-between;gap:20px;border:1px solid var(--line);border-radius:16px;padding:14px;background:#faf9f4}
+.setting-check-row span{display:grid;gap:3px}.setting-check-row small{color:var(--muted);font-weight:500}
+.setting-check-row input{width:21px;height:21px;accent-color:var(--ink)}
+.notification-permission-card{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid var(--line);border-radius:16px;padding:15px;background:#fff}
+.notification-permission-card p{margin:4px 0 0}
+.reminder-actions{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.reminder-actions .hint{margin:0}
+.reminder-explainer{background:linear-gradient(135deg,#fffdf7,#edf4ee)}
+
+@media(max-width:760px){
+  :root{--app-gutter:20px}
+  .bottom-nav{
+    width:100%!important;
+    left:0!important;
+    transform:none!important;
+    border-radius:0!important;
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  .bottom-nav .nav-btn{
+    padding:9px 4px!important;
+  }
+  .bottom-nav .nav-btn small{
+    font-size:.62rem!important;
+  }
+  .weekday-picker{grid-template-columns:repeat(4,1fr)}
+  .notification-permission-card,.reminder-actions{align-items:stretch;flex-direction:column}
+  .notification-permission-card button,.reminder-actions button{width:100%}
+}
+@media(max-width:430px){
+  :root{--app-gutter:16px}
+  .bottom-nav .nav-btn small{font-size:.56rem!important}
+  .bottom-nav .nav-btn span{font-size:1rem!important}
+}
+
+/* ===== V4.1.1 profile age + bot protection ===== */
+.signup-captcha-wrap{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:14px}
+.signup-captcha-wrap .hint{margin:0}
+.captcha-status{min-height:1.2em}
+#profileYearOfBirth{max-width:100%}

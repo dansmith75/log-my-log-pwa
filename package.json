@@ -1,6 +1,6 @@
 {
   "name": "log-my-log-pwa",
-  "version": "3.5.1",
+  "version": "4.1.1",
   "private": true,
   "scripts": {
     "qa": "node qa/run-qa.mjs"

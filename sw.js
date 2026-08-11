@@ -1,10 +1,11 @@
-const CACHE='log-my-log-v3.5.1';
+const CACHE='log-my-log-v4.1.1';
 const CORE=[
   './',
   './index.html',
-  './styles.css?v=3.5.1',
-  './app.js?v=3.5.1',
+  './styles.css?v=4.1.1',
+  './app.js?v=4.1.1',
   './db.js',
+  './captcha-config.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'

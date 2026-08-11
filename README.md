@@ -1,3 +1,15 @@
+# Log My Log v4.1.1
+
+Adds optional Year of Birth to the private profiles table and Cloudflare Turnstile CAPTCHA support for account creation. Run `supabase-profile-year-of-birth.sql` once. CAPTCHA is intentionally inactive until `captcha-config.js` contains the public Turnstile Site Key and Supabase CAPTCHA protection is enabled with the matching Turnstile Secret Key.
+
+# Log My Log v4.1
+
+Layout consistency and reminders. All five bottom-navigation items stay on one row, all screens share the same app width, and Settings now includes optional per-device reminders with selected days/time, missed-day nudges and browser notification permission. Reminder scheduling while the PWA is fully closed is not claimed; without a push service, browser support is not reliable.
+
+# Log My Log v4.0
+
+Adds Personal Baseline & Smarter Insights: Your Normal compares recent behaviour against the user's own earlier history, highlights meaningful shifts, shows timing/location rhythm, and compares repeated context tags against the user's recent average. These are descriptive observations, not diagnoses or causal claims.
+
 # Log My Log v3.5.1
 
 Profile fields now live in a dedicated `public.profiles` table rather than Auth metadata. Run `supabase-profiles.sql` once in Supabase SQL Editor before testing profile save/load. The migration preserves any profile fields already saved by v3.5. RLS restricts every profile row to its matching signed-in user.

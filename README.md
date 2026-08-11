@@ -1,3 +1,11 @@
+# Log My Log v3.2.2
+
+Hotfix: restores correct behaviour for the HTML `hidden` attribute. The offline and update banners are now only visible when JavaScript intentionally shows them, rather than being forced visible by their `display:flex` component styling.
+
+# Log My Log v3.2.1
+
+Hotfix for V3.2 pending-sync diagnostics. After a successful sync, the app now establishes the local post-refresh entries as the shared sync baseline, so completed uploads no longer remain incorrectly counted as pending.
+
 # Log My Log v3.2
 
 V3.2 is the sync-reliability release.

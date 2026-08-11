@@ -3,7 +3,8 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import crypto from 'node:crypto';
 
-const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..');
+import { fileURLToPath } from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
 const app=read('app.js'), html=read('index.html'), sw=read('sw.js'), manifest=JSON.parse(read('manifest.webmanifest'));
 const results=[];

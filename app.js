@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.2.2';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -1045,11 +1045,14 @@ async function syncNow(options={}){
     await refresh();
 
     const finalRows=await fetchAllCloudLogs();
-    const finalById=new Map(finalRows.map(r=>[r.id,r]));
+    const finalIds=new Set(finalRows.map(r=>r.id));
     const finalShadow={};
+
+    // Successful sync establishes a fresh common baseline.
+    // Use the local representation after refresh so the pending detector
+    // compares like-for-like on the next render.
     for(const entry of state.entries){
-      const row=finalById.get(entry.id);
-      if(row)finalShadow[entry.id]=cloudFingerprint(row);
+      if(finalIds.has(entry.id)) finalShadow[entry.id]=localFingerprint(entry);
     }
     saveShadowMap(finalShadow);
 
@@ -1206,7 +1209,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.2');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.2.2');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

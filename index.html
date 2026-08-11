@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.5" />
+  <link rel="stylesheet" href="styles.css?v=3.5.1" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -443,7 +443,7 @@
 
           <section class="card profile-card">
           <div class="section-head">
-            <div><p class="kicker">Optional profile</p><h3>About you</h3><p class="muted">Optional details that can make future personal metrics more useful. Leave anything blank you do not want to provide.</p></div>
+            <div><p class="kicker">Optional profile</p><h3>About you</h3><p class="muted">Optional details that can make future personal metrics more useful. They are stored separately from your logs. Leave anything blank you do not want to provide.</p></div>
           </div>
           <div class="profile-grid">
             <label>First name<input id="profileFirstName" type="text" autocomplete="given-name" maxlength="80" /></label>
@@ -469,7 +469,7 @@
               <select id="profileRegion"><option value="">Not specified</option></select>
             </label>
           </div>
-          <div class="profile-actions"><p class="hint" id="profileMessage">Stored securely with your account when signed in.</p><button type="button" id="saveProfileBtn" class="primary-btn">Save profile</button></div>
+          <div class="profile-actions"><p class="hint" id="profileMessage">Stored securely in your private profile when signed in.</p><button type="button" id="saveProfileBtn" class="primary-btn">Save profile</button></div>
         </section>
 
         <section class="card account-management-card">
@@ -521,7 +521,7 @@
           <section class="card"><p class="kicker">Control</p><h3>Local and cloud are separate</h3><p class="muted">You can sign out, disable automatic sync, clear cloud copies, or delete local data independently.</p></section>
         </div>
         <section class="card advanced-card"><details><summary><span><strong>Advanced technical details</strong><small>Useful for troubleshooting.</small></span><span class="details-plus">+</span></summary><div class="advanced-body"><p class="muted">On-device storage uses IndexedDB. Optional account sync is provided by Supabase with Row Level Security. Encrypted backup uses PBKDF2 SHA-256 and AES-GCM.</p></div></details></section><section class="card about-version-card">
-          <div><span class="version-orb">3.5</span></div>
+          <div><span class="version-orb">3.5.1</span></div>
           <div><p class="kicker">Log My Log</p><h3>Built for useful data without unnecessary drama.</h3><p class="muted">This app is for personal tracking and pattern awareness. It is not medical advice or a diagnostic tool.</p></div>
         </section>
       </section>
@@ -745,6 +745,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="app.js?v=3.5"></script>
+  <script type="module" src="app.js?v=3.5.1"></script>
 </body>
 </html>

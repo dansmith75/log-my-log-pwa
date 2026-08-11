@@ -1,3 +1,7 @@
+# Log My Log v3.5.1
+
+Profile fields now live in a dedicated `public.profiles` table rather than Auth metadata. Run `supabase-profiles.sql` once in Supabase SQL Editor before testing profile save/load. The migration preserves any profile fields already saved by v3.5. RLS restricts every profile row to its matching signed-in user.
+
 # Log My Log v3.5
 
 Consistent dark-green Open actions in Settings; optional account profile (first name, surname, nickname, mobile, country and region); and a confirmed self-service Delete my account action in Danger Zone. Run `supabase-delete-account.sql` once in Supabase SQL Editor to enable account deletion.

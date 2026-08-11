@@ -1,9 +1,9 @@
-const CACHE='log-my-log-v3.5';
+const CACHE='log-my-log-v3.5.1';
 const CORE=[
   './',
   './index.html',
-  './styles.css?v=3.5',
-  './app.js?v=3.5',
+  './styles.css?v=3.5.1',
+  './app.js?v=3.5.1',
   './db.js',
   './manifest.webmanifest',
   './icons/icon-192.png',

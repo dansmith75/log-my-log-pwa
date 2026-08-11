@@ -2,7 +2,7 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.5.1';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
 const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
@@ -1189,24 +1189,59 @@ function populateProfileRegions(selected=''){
   if(selected && !regions.includes(selected)){const o=document.createElement('option');o.value=selected;o.textContent=selected;select.appendChild(o);}
   select.value=selected||'';
 }
-function loadProfile(){
-  const meta=state.cloudUser?.user_metadata||{};
-  if($('#profileFirstName'))$('#profileFirstName').value=meta.first_name||'';
-  if($('#profileSurname'))$('#profileSurname').value=meta.surname||'';
-  if($('#profileNickname'))$('#profileNickname').value=meta.nickname||'';
-  if($('#profileMobile'))$('#profileMobile').value=meta.mobile||'';
-  if($('#profileCountry'))$('#profileCountry').value=meta.country||'';
-  populateProfileRegions(meta.region||'');
+async function loadProfile(){
+  if(!state.cloudUser){
+    for(const id of ['profileFirstName','profileSurname','profileNickname','profileMobile']){
+      if($(`#${id}`))$(`#${id}`).value='';
+    }
+    if($('#profileCountry'))$('#profileCountry').value='';
+    populateProfileRegions('');
+    return;
+  }
+  try{
+    const {data,error}=await supabaseClient.from('profiles')
+      .select('first_name,surname,nickname,mobile,country,region')
+      .eq('id',state.cloudUser.id)
+      .maybeSingle();
+    if(error)throw error;
+    const profile=data||{};
+    if($('#profileFirstName'))$('#profileFirstName').value=profile.first_name||'';
+    if($('#profileSurname'))$('#profileSurname').value=profile.surname||'';
+    if($('#profileNickname'))$('#profileNickname').value=profile.nickname||'';
+    if($('#profileMobile'))$('#profileMobile').value=profile.mobile||'';
+    if($('#profileCountry'))$('#profileCountry').value=profile.country||'';
+    populateProfileRegions(profile.region||'');
+    if($('#profileMessage'))$('#profileMessage').textContent=data
+      ? 'Stored securely in your private profile.'
+      : 'No profile saved yet — every field is optional.';
+  }catch(err){
+    console.error('Could not load profile',err);
+    if($('#profileMessage'))$('#profileMessage').textContent=friendlyCloudError(err,'Could not load your profile. Your logs are unaffected.');
+  }
 }
 async function saveProfile(){
   if(!state.cloudUser){toast('Sign in to save your profile');return;}
   const btn=$('#saveProfileBtn');setBusy(btn,true,'Saving…');
-  const data={first_name:$('#profileFirstName')?.value.trim()||'',surname:$('#profileSurname')?.value.trim()||'',nickname:$('#profileNickname')?.value.trim()||'',mobile:$('#profileMobile')?.value.trim()||'',country:$('#profileCountry')?.value||'',region:$('#profileRegion')?.value||''};
+  const profile={
+    id:state.cloudUser.id,
+    first_name:$('#profileFirstName')?.value.trim()||null,
+    surname:$('#profileSurname')?.value.trim()||null,
+    nickname:$('#profileNickname')?.value.trim()||null,
+    mobile:$('#profileMobile')?.value.trim()||null,
+    country:$('#profileCountry')?.value||null,
+    region:$('#profileRegion')?.value||null,
+    updated_at:new Date().toISOString()
+  };
   try{
-    const {data:result,error}=await supabaseClient.auth.updateUser({data});if(error)throw error;
-    state.cloudUser=result.user;loadProfile();$('#profileMessage').textContent='Profile saved.';toast('Profile saved');
-  }catch(err){console.error(err);$('#profileMessage').textContent=friendlyCloudError(err,'Could not save your profile.');}
-  finally{setBusy(btn,false);}
+    const {error}=await supabaseClient.from('profiles').upsert(profile,{onConflict:'id'});
+    if(error)throw error;
+    await loadProfile();
+    if($('#profileMessage'))$('#profileMessage').textContent='Profile saved.';
+    toast('Profile saved');
+  }catch(err){
+    console.error(err);
+    if($('#profileMessage'))$('#profileMessage').textContent=friendlyCloudError(err,'Could not save your profile.');
+  }finally{setBusy(btn,false);}
 }
 function openDeleteAccount(){
   if(!state.cloudUser){toast('Sign in before deleting your account');return;}
@@ -1286,7 +1321,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.5');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.5.1');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

@@ -2,10 +2,10 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
-const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.2';
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null };
+const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.3';
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30 };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -210,14 +210,54 @@ function dailyDebrief(){
   return {title:todays.length>=3?'A busy day at the office':todays.length===2?'Double-header complete':'Today’s first report is in',body:`${parts.join(' · ')}. ${verdict}`,footer:'Today’s leader',value:`Type ${common}`,type:common};
 }
 
+
+function statsEntries(){
+  if(!state.statsDays) return state.entries;
+  const cutoff=Date.now()-state.statsDays*86400000;
+  return state.entries.filter(e=>new Date(e.timestamp).getTime()>=cutoff);
+}
+function selectedContextTags(){
+  return $$('.context-chips button.selected').map(b=>b.dataset.tag);
+}
+function syncContextChips(){
+  const tags=$('#tags').value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  $$('.context-chips button').forEach(b=>b.classList.toggle('selected',tags.includes(b.dataset.tag)));
+}
+function toggleContextTag(tag){
+  let tags=$('#tags').value.split(',').map(x=>x.trim()).filter(Boolean);
+  const idx=tags.findIndex(x=>x.toLowerCase()===tag.toLowerCase());
+  if(idx>=0) tags.splice(idx,1); else tags.push(tag);
+  $('#tags').value=tags.join(', ');
+  syncContextChips();
+}
+function renderCorrelations(entries){
+  const el=$('#correlationInsights'); if(!el)return;
+  const tags=['coffee','alcohol','spicy','dairy','high-fibre','takeaway','bloating','cramps','gas','nausea'];
+  const label={'coffee':'☕ Coffee','alcohol':'🍷 Alcohol','spicy':'🌶️ Spicy','dairy':'🥛 Dairy','high-fibre':'🌾 High fibre','takeaway':'🥡 Takeaway','bloating':'Bloating','cramps':'Cramps','gas':'Gas','nausea':'Nausea'};
+  const cards=tags.map(tag=>{
+    const tagged=entries.filter(e=>(e.tags||[]).map(x=>String(x).toLowerCase()).includes(tag));
+    if(tagged.length<2)return null;
+    const avg=tagged.reduce((s,e)=>s+Number(e.bristolType),0)/tagged.length;
+    const loose=tagged.filter(e=>Number(e.bristolType)>=5).length/tagged.length;
+    const ideal=tagged.filter(e=>[3,4,5].includes(Number(e.bristolType))).length/tagged.length;
+    return {tag,n:tagged.length,avg,loose,ideal};
+  }).filter(Boolean).sort((a,b)=>b.n-a.n).slice(0,6);
+  if(!cards.length){
+    el.innerHTML='<div class="empty correlation-empty"><strong>Not enough context yet.</strong><span>Use the food, drink and symptom chips on a few logs and Log My Log will start comparing them.</span></div>';
+    return;
+  }
+  el.innerHTML=cards.map(c=>`<article class="correlation-item"><span>${label[c.tag]||escapeHtml(c.tag)}</span><strong>Avg Type ${c.avg.toFixed(1)}</strong><p>${Math.round(c.ideal*100)}% Types 3–5 · ${Math.round(c.loose*100)}% Types 5–7</p><small>Based on ${c.n} tagged logs</small></article>`).join('');
+}
+
 function renderStats(){
-  const n=state.entries.length;
-  const days=new Set(state.entries.map(e=>dayKey(e.timestamp))).size;
+  const entries=statsEntries();
+  const n=entries.length;
+  const days=new Set(entries.map(e=>dayKey(e.timestamp))).size;
   const avgPerDay=days?(n/days).toFixed(1):'—';
-  const avgType=n?(state.entries.reduce((s,e)=>s+Number(e.bristolType),0)/n).toFixed(1):'—';
-  const idealPct=n?Math.round(state.entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length/n*100)+'%':'—';
-  const weekCount=state.entries.filter(e=>(Date.now()-new Date(e.timestamp).getTime())<7*86400000).length;
-  const durations=state.entries.map(e=>Number(e.duration)).filter(v=>Number.isFinite(v)&&v>0);
+  const avgType=n?(entries.reduce((s,e)=>s+Number(e.bristolType),0)/n).toFixed(1):'—';
+  const idealPct=n?Math.round(entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length/n*100)+'%':'—';
+  const weekCount=entries.filter(e=>(Date.now()-new Date(e.timestamp).getTime())<7*86400000).length;
+  const durations=entries.map(e=>Number(e.duration)).filter(v=>Number.isFinite(v)&&v>0);
   const medDuration=median(durations);
 
   $('#statsCards').innerHTML=[['Total logs',n,'all time'],['Last 7 days',weekCount,'recent entries'],['Average type',avgType,'across all logs'],['Types 3–5',idealPct,'of your logs']].map(([l,v,s])=>`<div class="stat-card"><strong>${v}</strong><span>${l}</span><small>${s}</small></div>`).join('');
@@ -226,19 +266,19 @@ function renderStats(){
   $('#streakBadge').innerHTML=`<strong>${streak}</strong><span>day streak</span>`;
 
   const counts=Object.fromEntries([1,2,3,4,5,6,7].map(x=>[x,0]));
-  state.entries.forEach(e=>counts[e.bristolType]++);
+  entries.forEach(e=>counts[e.bristolType]++);
   const max=Math.max(1,...Object.values(counts));
   $('#typeChart').innerHTML=Object.entries(counts).map(([t,c])=>`<div class="bar-row"><div class="bar-label"><span>${t}</span>${escapeHtml(bristolInfo[t].name)}</div><div class="bar-track"><div class="bar-fill type-${t}" style="width:${(c/max)*100}%"></div></div><strong>${c}</strong></div>`).join('');
-  $('#statsRangeLabel').textContent=n?`${n} entries`:'No entries yet';
+  $('#statsRangeLabel').textContent=n?`${n} entries · ${state.statsDays?`last ${state.statsDays} days`:'all time'}`:'No entries yet';
 
   const now=new Date();
   const days14=[];
-  for(let i=13;i>=0;i--){ const d=new Date(now); d.setHours(12,0,0,0); d.setDate(d.getDate()-i); const k=dayKey(d); days14.push({d,k,c:state.entries.filter(e=>dayKey(e.timestamp)===k).length}); }
+  for(let i=13;i>=0;i--){ const d=new Date(now); d.setHours(12,0,0,0); d.setDate(d.getDate()-i); const k=dayKey(d); days14.push({d,k,c:entries.filter(e=>dayKey(e.timestamp)===k).length}); }
   const maxDay=Math.max(1,...days14.map(x=>x.c));
   $('#dailyChart').innerHTML=days14.map(x=>`<div class="day-col" title="${x.k}: ${x.c}"><span class="day-count">${x.c||''}</span><div class="day-bar" style="height:${Math.max(3,(x.c/maxDay)*120)}px"></div><span class="day-label">${x.d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'})}</span></div>`).join('');
 
   if(n){
-    const common=Number(mode(state.entries.map(e=>Number(e.bristolType))));
+    const common=Number(mode(entries.map(e=>Number(e.bristolType))));
     const time=mostCommonTime();
     $('#patternTitle').textContent=`${bristolInfo[common].short} appears most often`;
     $('#patternText').textContent=`Type ${common} is currently your most common Bristol type. These are simple summaries of your own logs, not medical conclusions.`;
@@ -251,6 +291,8 @@ function renderStats(){
 
   const records=personalRecords();
   $('#personalRecords').innerHTML=records.length?records.map(r=>`<article class="record-item"><div class="record-icon">${r.icon}</div><span>${escapeHtml(r.label)}</span><strong>${escapeHtml(r.value)}</strong><small>${escapeHtml(r.sub)}</small></article>`).join(''):`<div class="empty records-empty"><strong>No records yet.</strong><span>Your first log automatically sets several personal bests.</span></div>`;
+
+  renderCorrelations(entries);
 
   const achievements=achievementData();
   const unlocked=achievements.filter(a=>a.unlocked).length;
@@ -271,7 +313,7 @@ function resetForm(){
   const p=todayParts();
   $('#logDate').value=p.date; $('#logTime').value=p.time; $('#colour').value='Brown'; $('#entryId').value='';
   state.selectedType=4; $('#saveBtn').textContent='Save log'; $('#cancelEditBtn').hidden=true;
-  renderBristolPicker(); syncSegmented();
+  renderBristolPicker(); syncSegmented(); syncContextChips();
   const details=$('.more-details'); if(details)details.open=false;
 }
 
@@ -279,7 +321,7 @@ function editEntry(id){
   const e=state.entries.find(x=>x.id===id); if(!e)return;
   $('#entryId').value=e.id; $('#logDate').value=e.date; $('#logTime').value=e.time; state.selectedType=Number(e.bristolType);
   $('#ease').value=e.ease||''; $('#urgency').value=e.urgency||''; $('#colour').value=e.colour||'Brown'; $('#duration').value=e.duration??'';
-  $('#location').value=e.location||''; $('#notes').value=e.notes||''; $('#tags').value=(e.tags||[]).join(', ');
+  $('#location').value=e.location||''; $('#notes').value=e.notes||''; $('#tags').value=(e.tags||[]).join(', '); syncContextChips();
   $('#saveBtn').textContent='Update log'; $('#cancelEditBtn').hidden=false; renderBristolPicker(); syncSegmented();
   if(e.location||e.notes||(e.tags||[]).length||e.duration) $('.more-details').open=true;
   showScreen('log');
@@ -332,6 +374,15 @@ $$('.segmented-control').forEach(control=>{
   control.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{ select.value=button.dataset.value; syncSegmented(); }));
   select.addEventListener('change',syncSegmented);
 });
+
+
+$$('.context-chips button').forEach(button=>button.addEventListener('click',()=>toggleContextTag(button.dataset.tag)));
+$('#tags').addEventListener('input',syncContextChips);
+$$('#statsRange button').forEach(button=>button.addEventListener('click',()=>{
+  state.statsDays=Number(button.dataset.days);
+  $$('#statsRange button').forEach(b=>b.classList.toggle('active',b===button));
+  renderStats();
+}));
 
 $$('[data-nav]').forEach(btn=>btn.addEventListener('click',()=>showScreen(btn.dataset.nav)));
 $('#quickLogBtn').onclick=()=>{resetForm();showScreen('log');};
@@ -413,7 +464,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=2.2');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=2.3');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

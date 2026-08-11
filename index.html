@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=2.2" />
+  <link rel="stylesheet" href="styles.css?v=2.3" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -182,9 +182,37 @@
                 <textarea id="notes" maxlength="500" rows="4" placeholder="Anything worth remembering?"></textarea>
               </label>
 
-              <label>Tags
-                <input id="tags" type="text" maxlength="120" placeholder="coffee, spicy-food, travel" />
-                <span class="hint">Separate tags with commas.</span>
+              <div class="context-tracker">
+                <div>
+                  <span class="choice-heading">Food & drink</span>
+                  <p class="hint">Optional. Tap anything that may be relevant.</p>
+                </div>
+                <div class="context-chips" id="foodChips">
+                  <button type="button" data-tag="coffee">☕ Coffee</button>
+                  <button type="button" data-tag="alcohol">🍷 Alcohol</button>
+                  <button type="button" data-tag="spicy">🌶️ Spicy</button>
+                  <button type="button" data-tag="dairy">🥛 Dairy</button>
+                  <button type="button" data-tag="high-fibre">🌾 High fibre</button>
+                  <button type="button" data-tag="takeaway">🥡 Takeaway</button>
+                </div>
+              </div>
+
+              <div class="context-tracker">
+                <div>
+                  <span class="choice-heading">Symptoms</span>
+                  <p class="hint">Optional context for your own pattern tracking.</p>
+                </div>
+                <div class="context-chips symptom-chips" id="symptomChips">
+                  <button type="button" data-tag="bloating">Bloating</button>
+                  <button type="button" data-tag="cramps">Cramps</button>
+                  <button type="button" data-tag="gas">Gas</button>
+                  <button type="button" data-tag="nausea">Nausea</button>
+                </div>
+              </div>
+
+              <label>Other tags
+                <input id="tags" type="text" maxlength="180" placeholder="travel, late-night, restaurant…" />
+                <span class="hint">Quick choices above are saved as tags too. Add anything else here, comma-separated.</span>
               </label>
             </div>
           </details>
@@ -222,7 +250,15 @@
             <h2 id="statsTitle">Stats</h2>
             <p class="muted">A lightweight view of your own data. This is not medical advice.</p>
           </div>
-          <div class="streak-badge" id="streakBadge"><strong>0</strong><span>day streak</span></div>
+          <div class="stats-head-actions">
+            <div class="range-switcher" id="statsRange">
+              <button type="button" data-days="7">7D</button>
+              <button type="button" data-days="30" class="active">30D</button>
+              <button type="button" data-days="90">90D</button>
+              <button type="button" data-days="0">All</button>
+            </div>
+            <div class="streak-badge" id="streakBadge"><strong>0</strong><span>day streak</span></div>
+          </div>
         </div>
 
         <div id="statsCards" class="stats-grid"></div>
@@ -246,6 +282,18 @@
           <div id="dailyChart" class="bar-chart daily"></div>
         </div>
 
+
+
+        <div class="card correlation-card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Connections</p>
+              <h3>What shows up together?</h3>
+            </div>
+            <span class="muted">observations, not causes</span>
+          </div>
+          <div id="correlationInsights" class="correlation-grid"></div>
+        </div>
         <div class="card records-card">
           <div class="section-head">
             <div>
@@ -296,7 +344,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v2.2</span></h3>
+              <h3>Log My Log <span class="version-pill">v2.3</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -383,6 +431,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=2.2"></script>
+  <script type="module" src="app.js?v=2.3"></script>
 </body>
 </html>

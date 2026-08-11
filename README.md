@@ -1,3 +1,7 @@
+# Log My Log v2.3
+
+Adds optional food/drink and symptom quick-tags, 7/30/90/all-time Stats ranges, and simple tag-based pattern comparisons. Correlations are descriptive observations from the user's own logs and are not medical conclusions.
+
 # Log My Log PWA
 
 A mobile-first, installable, offline-capable poo logging Progressive Web App.

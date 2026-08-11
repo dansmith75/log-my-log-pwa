@@ -2,10 +2,10 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '3.0.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
-const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.3';
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30 };
+const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30 };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -56,6 +56,8 @@ function showScreen(name){
   $$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
   if(name==='history') renderHistory();
   if(name==='stats') renderStats();
+  if(name==='report') renderHealthReport();
+  if(name==='account') renderAccount();
   scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -249,6 +251,206 @@ function renderCorrelations(entries){
   el.innerHTML=cards.map(c=>`<article class="correlation-item"><span>${label[c.tag]||escapeHtml(c.tag)}</span><strong>Avg Type ${c.avg.toFixed(1)}</strong><p>${Math.round(c.ideal*100)}% Types 3–5 · ${Math.round(c.loose*100)}% Types 5–7</p><small>Based on ${c.n} tagged logs</small></article>`).join('');
 }
 
+
+function entriesInPeriod(days, offsetPeriods=0){
+  const now=Date.now();
+  const end=now-(offsetPeriods*days*86400000);
+  const start=end-(days*86400000);
+  return state.entries.filter(e=>{
+    const t=new Date(e.timestamp).getTime();
+    return t>=start && t<end;
+  });
+}
+function pct(n,d){ return d?Math.round(n/d*100):0; }
+function deltaText(current,previous,suffix=''){
+  if(previous===null || previous===undefined || !Number.isFinite(previous)) return 'No previous comparison';
+  const diff=current-previous;
+  if(Math.abs(diff)<0.05) return `No meaningful change${suffix}`;
+  return `${diff>0?'+':''}${diff.toFixed(1)}${suffix} vs previous period`;
+}
+function distribution(entries,field,values){
+  return values.map(value=>({value,count:entries.filter(e=>String(e[field]||'')===String(value)).length}));
+}
+function reportContextRows(entries){
+  const tags=['coffee','alcohol','spicy','dairy','high-fibre','takeaway','bloating','cramps','gas','nausea'];
+  const labels={'coffee':'Coffee','alcohol':'Alcohol','spicy':'Spicy food','dairy':'Dairy','high-fibre':'High fibre','takeaway':'Takeaway','bloating':'Bloating','cramps':'Cramps','gas':'Gas','nausea':'Nausea'};
+  return tags.map(tag=>{
+    const matched=entries.filter(e=>(e.tags||[]).map(x=>String(x).toLowerCase()).includes(tag));
+    if(matched.length<2) return null;
+    const avg=matched.reduce((s,e)=>s+Number(e.bristolType),0)/matched.length;
+    return {label:labels[tag],count:matched.length,avg,ideal:pct(matched.filter(e=>[3,4,5].includes(Number(e.bristolType))).length,matched.length)};
+  }).filter(Boolean).sort((a,b)=>b.count-a.count).slice(0,6);
+}
+function reportModel(days){
+  const entries=entriesInPeriod(days,0);
+  const previous=entriesInPeriod(days,1);
+  const n=entries.length;
+  const prevN=previous.length;
+  const avgType=n?entries.reduce((s,e)=>s+Number(e.bristolType),0)/n:null;
+  const prevAvg=prevN?previous.reduce((s,e)=>s+Number(e.bristolType),0)/prevN:null;
+  const idealCount=entries.filter(e=>[3,4,5].includes(Number(e.bristolType))).length;
+  const highUrgency=entries.filter(e=>e.urgency==='High').length;
+  const difficult=entries.filter(e=>e.ease==='Difficult').length;
+  const durations=entries.map(e=>Number(e.duration)).filter(v=>Number.isFinite(v)&&v>0);
+  const dates=entries.map(e=>new Date(e.timestamp));
+  const periodEnd=new Date();
+  const periodStart=new Date(Date.now()-days*86400000);
+  const dateFmt=new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short',year:'numeric'});
+  const typeDist=[1,2,3,4,5,6,7].map(type=>({type,count:entries.filter(e=>Number(e.bristolType)===type).length}));
+  const easeDist=distribution(entries,'ease',['Easy','Normal','Difficult']);
+  const urgencyDist=distribution(entries,'urgency',['Low','Medium','High']);
+  const mostCommonType=n?Number(mode(entries.map(e=>Number(e.bristolType)))):null;
+  const locationValues=entries.map(e=>(e.location||'').trim()).filter(Boolean);
+  const commonLocation=locationValues.length?mode(locationValues):null;
+  const hours=dates.map(d=>d.getHours());
+  let commonTime='—';
+  if(hours.length){
+    const bins=[
+      {name:'Early morning',from:5,to:9},
+      {name:'Morning',from:9,to:12},
+      {name:'Afternoon',from:12,to:17},
+      {name:'Evening',from:17,to:22},
+      {name:'Overnight',from:22,to:29}
+    ];
+    const scored=bins.map(b=>({name:b.name,count:hours.filter(h=>{
+      const hh=h<5?h+24:h;
+      return hh>=b.from&&hh<b.to;
+    }).length})).sort((a,b)=>b.count-a.count);
+    commonTime=scored[0]?.count?scored[0].name:'—';
+  }
+  return {
+    days,entries,previous,n,prevN,avgType,prevAvg,
+    idealPct:pct(idealCount,n),
+    highUrgencyPct:pct(highUrgency,n),
+    difficultPct:pct(difficult,n),
+    medianDuration:median(durations),
+    period:`${dateFmt.format(periodStart)} – ${dateFmt.format(periodEnd)}`,
+    generated:new Intl.DateTimeFormat(undefined,{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date()),
+    typeDist,easeDist,urgencyDist,mostCommonType,commonLocation,commonTime,
+    contexts:reportContextRows(entries)
+  };
+}
+function reportBars(items,labelFn,maxValue){
+  const max=Math.max(1, maxValue || 0, ...items.map(x=>x.count));
+  return items.map(item=>`
+    <div class="report-bar-row">
+      <span>${escapeHtml(labelFn(item))}</span>
+      <div class="report-bar-track"><i style="width:${item.count/max*100}%"></i></div>
+      <strong>${item.count}</strong>
+    </div>`).join('');
+}
+function renderHealthReport(){
+  const r=reportModel(state.reportDays);
+  const el=$('#healthReport'); if(!el)return;
+  if(!r.n){
+    el.innerHTML=`<div class="card report-empty"><h3>No logs in this period</h3><p class="muted">There are no entries in the last ${r.days} days. Choose a longer report period or add more logs first.</p></div>`;
+    return;
+  }
+  const weekly=(r.n/r.days*7);
+  const prevWeekly=(r.prevN/r.days*7);
+  const avgDisplay=r.avgType!==null?r.avgType.toFixed(1):'—';
+  const contextHtml=r.contexts.length?r.contexts.map(c=>`<tr><td>${escapeHtml(c.label)}</td><td>${c.count}</td><td>Type ${c.avg.toFixed(1)}</td><td>${c.ideal}%</td></tr>`).join(''):`<tr><td colspan="4" class="muted">Not enough repeated food, drink or symptom tags in this period.</td></tr>`;
+  el.innerHTML=`
+    <article class="clinical-report">
+      <header class="clinical-report-header">
+        <div>
+          <span class="clinical-brand">LOG MY LOG</span>
+          <h1>Bowel habit summary</h1>
+          <p>${escapeHtml(r.period)} · ${r.days}-day report</p>
+        </div>
+        <div class="clinical-generated"><span>Generated</span><strong>${escapeHtml(r.generated)}</strong></div>
+      </header>
+
+      <div class="clinical-disclaimer">
+        This report summarises user-entered records. It does not diagnose a condition and should be interpreted alongside clinical history and professional assessment.
+      </div>
+
+      <section class="clinical-metrics">
+        <div><span>Recorded bowel movements</span><strong>${r.n}</strong><small>${weekly.toFixed(1)} per week · ${deltaText(weekly,prevWeekly,'/wk')}</small></div>
+        <div><span>Average Bristol type</span><strong>${avgDisplay}</strong><small>${r.prevAvg!==null?deltaText(r.avgType,r.prevAvg):'No previous comparison'}</small></div>
+        <div><span>Types 3–5</span><strong>${r.idealPct}%</strong><small>of recorded entries</small></div>
+        <div><span>High urgency</span><strong>${r.highUrgencyPct}%</strong><small>of recorded entries</small></div>
+        <div><span>Difficult passage</span><strong>${r.difficultPct}%</strong><small>of recorded entries</small></div>
+        <div><span>Median duration</span><strong>${r.medianDuration!==null?`${r.medianDuration} min`:'—'}</strong><small>where duration was recorded</small></div>
+      </section>
+
+      <section class="clinical-section two-column-report">
+        <div>
+          <h2>Bristol stool distribution</h2>
+          <div class="report-bars">${reportBars(r.typeDist,x=>`Type ${x.type}`,Math.max(...r.typeDist.map(x=>x.count)))}</div>
+        </div>
+        <div class="clinical-summary-box">
+          <h2>Pattern summary</h2>
+          <dl>
+            <div><dt>Most common Bristol type</dt><dd>${r.mostCommonType?`Type ${r.mostCommonType}`:'—'}</dd></div>
+            <div><dt>Most common time period</dt><dd>${escapeHtml(r.commonTime)}</dd></div>
+            <div><dt>Most recorded location</dt><dd>${escapeHtml(r.commonLocation||'—')}</dd></div>
+            <div><dt>Previous-period logs</dt><dd>${r.prevN}</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="clinical-section two-column-report">
+        <div>
+          <h2>Ease</h2>
+          <div class="report-bars">${reportBars(r.easeDist,x=>x.value)}</div>
+        </div>
+        <div>
+          <h2>Urgency</h2>
+          <div class="report-bars">${reportBars(r.urgencyDist,x=>x.value)}</div>
+        </div>
+      </section>
+
+      <section class="clinical-section">
+        <h2>Recorded context</h2>
+        <p class="clinical-note">The associations below are descriptive only. A tag appearing with a stool type does not establish that it caused the outcome.</p>
+        <div class="clinical-table-wrap">
+          <table class="clinical-table">
+            <thead><tr><th>Context</th><th>Tagged logs</th><th>Average type</th><th>Types 3–5</th></tr></thead>
+            <tbody>${contextHtml}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="clinical-report-footer">
+        <span>Log My Log v${APP_VERSION}</span>
+        <span>Locally generated health summary</span>
+      </footer>
+    </article>`;
+}
+function printableReportHtml(){
+  const r=reportModel(state.reportDays);
+  const report=$('#healthReport')?.innerHTML||'';
+  const style=`
+    *{box-sizing:border-box}body{margin:0;background:#fff;color:#17251e;font:14px/1.45 Arial,sans-serif}
+    .clinical-report{max-width:900px;margin:0 auto;padding:32px}
+    .clinical-report-header{display:flex;justify-content:space-between;gap:30px;border-bottom:3px solid #173a2b;padding-bottom:18px}
+    .clinical-brand{font-size:10px;letter-spacing:.16em;font-weight:700}.clinical-report h1{font-size:28px;margin:5px 0}
+    .clinical-report h2{font-size:16px;margin:0 0 12px}.clinical-report p{margin:4px 0}
+    .clinical-generated{text-align:right}.clinical-generated span,.clinical-generated strong{display:block}.clinical-generated span{font-size:11px;color:#667269;text-transform:uppercase}
+    .clinical-disclaimer{margin:18px 0;padding:12px 14px;background:#f0f3f0;border-left:4px solid #173a2b;font-size:12px}
+    .clinical-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+    .clinical-metrics>div{border:1px solid #d8ddd9;border-radius:8px;padding:12px}.clinical-metrics span,.clinical-metrics small{display:block;color:#637068}
+    .clinical-metrics strong{display:block;font-size:23px;margin:4px 0}.clinical-section{border-top:1px solid #d8ddd9;padding:20px 0}
+    .two-column-report{display:grid;grid-template-columns:1fr 1fr;gap:28px}.report-bar-row{display:grid;grid-template-columns:70px 1fr 28px;gap:8px;align-items:center;margin:7px 0}
+    .report-bar-track{height:10px;background:#e8ece9;border-radius:6px;overflow:hidden}.report-bar-track i{display:block;height:100%;background:#173a2b}
+    .clinical-summary-box dl{margin:0}.clinical-summary-box dl div{display:flex;justify-content:space-between;gap:15px;border-bottom:1px solid #e5e8e5;padding:7px 0}
+    dt{color:#637068}dd{margin:0;font-weight:700}.clinical-note{font-size:12px;color:#637068}
+    table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #dfe3e0;padding:8px}th{font-size:11px;text-transform:uppercase}
+    .clinical-report-footer{border-top:1px solid #d8ddd9;margin-top:22px;padding-top:12px;display:flex;justify-content:space-between;color:#637068;font-size:11px}
+    @page{size:A4;margin:12mm}@media print{.clinical-report{padding:0}.clinical-section{break-inside:avoid}.clinical-metrics{break-inside:avoid}}
+  `;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Log My Log ${r.days}-day health summary</title><style>${style}</style></head><body>${report}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));<\/script></body></html>`;
+}
+function printHealthReport(){
+  if(!reportModel(state.reportDays).n){ toast('There are no logs in this report period'); return; }
+  const win=window.open('','_blank');
+  if(!win){ toast('Allow pop-ups to print the report'); return; }
+  win.document.open();
+  win.document.write(printableReportHtml());
+  win.document.close();
+}
+
 function renderStats(){
   const entries=statsEntries();
   const n=entries.length;
@@ -397,6 +599,25 @@ $('#successViewBtn').onclick=()=>finishSuccess('history');
 $('#successDialog').addEventListener('cancel',()=>finishSuccess('home'));
 $('#achievementUnlockBtn').onclick=()=>$('#achievementDialog').close();
 
+
+
+if($('#openAccountBtn')) $('#openAccountBtn').onclick=()=>showScreen('account');
+if($('#saveDeviceNameBtn')) $('#saveDeviceNameBtn').onclick=saveDeviceName;
+if($('#configureSyncBtn')) $('#configureSyncBtn').onclick=()=>$('#syncConfigDialog')?.showModal();
+if($('#exportEncryptedBtn')) $('#exportEncryptedBtn').onclick=exportEncryptedBackup;
+if($('#importEncryptedInput')) $('#importEncryptedInput').addEventListener('change',e=>{
+  const file=e.target.files?.[0];
+  if(file) importEncryptedBackup(file);
+});
+
+$('#openReportBtn').onclick=()=>showScreen('report');
+$$('#reportRange button').forEach(button=>button.addEventListener('click',()=>{
+  state.reportDays=Number(button.dataset.reportDays);
+  $$('#reportRange button').forEach(b=>b.classList.toggle('active',b===button));
+  renderHealthReport();
+}));
+$('#printReportBtn').onclick=printHealthReport;
+
 $('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'Log My Log',version:APP_VERSION,exportedAt:new Date().toISOString(),entries:state.entries},null,2),'application/json');
 $('#exportCsvBtn').onclick=()=>{ const cols=['id','date','time','bristolType','ease','urgency','colour','duration','location','notes','tags']; const esc=v=>`"${String(v??'').replaceAll('"','""')}"`; const rows=state.entries.map(e=>cols.map(c=>esc(c==='tags'?(e.tags||[]).join('|'):e[c])).join(',')); downloadFile(`log-my-log-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(','),...rows].join('\n'),'text/csv'); };
 $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());const entries=Array.isArray(data)?data:data.entries;if(!Array.isArray(entries))throw new Error();const valid=entries.filter(e=>e&&e.id&&e.timestamp&&Number(e.bristolType)>=1&&Number(e.bristolType)<=7);await bulkSave(valid);await refresh();toast(`Imported ${valid.length} entries`);}catch{toast('That backup file is not valid.');}finally{ev.target.value='';} };
@@ -464,7 +685,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=2.3');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.0');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{

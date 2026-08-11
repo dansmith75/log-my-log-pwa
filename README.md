@@ -1,6 +1,30 @@
-# Log My Log v2.3
+# Log My Log v3.0
 
-Adds optional food/drink and symptom quick-tags, 7/30/90/all-time Stats ranges, and simple tag-based pattern comparisons. Correlations are descriptive observations from the user's own logs and are not medical conclusions.
+V3 introduces a local-first account and sync architecture without forcing users to create an account.
+
+## Included in v3.0
+- Persistent device identity and device naming
+- Account & Sync screen
+- Optional cloud-sync adapter boundary
+- Password-protected encrypted backups using Web Crypto (PBKDF2 + AES-GCM)
+- Encrypted backup restore
+- Existing local IndexedDB workflow remains the default
+- Existing v2 logs remain compatible
+
+## Cloud sync
+The app is structurally ready for cloud sync, but this build intentionally does not embed a cloud-provider project URL/key. The current static GitHub Pages deployment remains fully functional without any backend.
+
+A suitable next connection is Supabase using its public client key with authentication and row-level security. Do not put a Supabase service-role key or other server secret into this PWA.
+
+# Log My Log v2.4.1
+
+Hotfix for v2.4: fixes the health-report JavaScript syntax error and prevents the service worker from attempting to cache browser-extension requests.
+
+# Log My Log v2.4
+
+Adds a locally generated 7/30/90-day health summary, current-vs-previous-period comparisons, Bristol/ease/urgency breakdowns, context observations, and a clean Print / Save as PDF workflow intended for optional sharing with a healthcare professional.
+
+The report is generated locally from IndexedDB data. Log My Log does not upload the report or entries to a server.
 
 # Log My Log PWA
 

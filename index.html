@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=2.3" />
+  <link rel="stylesheet" href="styles.css?v=3.0" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -317,12 +317,141 @@
         </div>
       </section>
 
+
+
+      <section id="screen-account" class="screen" aria-labelledby="accountTitle">
+        <div class="section-head">
+          <div>
+            <p class="kicker">V3</p>
+            <h2 id="accountTitle">Account & sync</h2>
+            <p class="muted">Local-first by default. Cloud sync is optional.</p>
+          </div>
+          <span class="sync-status-pill local" id="syncStatusPill">Local only</span>
+        </div>
+
+        <div class="account-grid">
+          <section class="card account-card">
+            <div class="account-card-head">
+              <div>
+                <p class="kicker">This device</p>
+                <h3>Device identity</h3>
+              </div>
+              <span class="device-dot"></span>
+            </div>
+            <dl class="account-details">
+              <div><dt>Device name</dt><dd id="deviceNameLabel">This device</dd></div>
+              <div><dt>Device ID</dt><dd><code id="deviceIdLabel">—</code></dd></div>
+              <div><dt>Storage</dt><dd>Local IndexedDB</dd></div>
+            </dl>
+            <label>Rename device
+              <input id="deviceNameInput" type="text" maxlength="40" placeholder="e.g. Dan's phone" />
+            </label>
+            <button type="button" id="saveDeviceNameBtn" class="secondary-btn">Save device name</button>
+          </section>
+
+          <section class="card account-card">
+            <div class="account-card-head">
+              <div>
+                <p class="kicker">Optional</p>
+                <h3>Cloud sync</h3>
+              </div>
+            </div>
+            <p class="muted">V3 is ready for sync, but your current GitHub Pages build has no cloud provider configured yet.</p>
+            <div class="sync-provider-box">
+              <strong id="syncProviderName">No provider configured</strong>
+              <span id="syncProviderHint">Your logs remain only on this device.</span>
+            </div>
+            <button type="button" id="configureSyncBtn" class="primary-btn">Configure sync</button>
+          </section>
+        </div>
+
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Portable privacy</p>
+              <h3>Encrypted backup</h3>
+            </div>
+          </div>
+          <p class="muted">Create a password-protected backup you can move between devices. Encryption happens in your browser using Web Crypto.</p>
+          <div class="encrypted-backup-grid">
+            <label>Backup password
+              <input id="backupPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+            </label>
+            <div class="encrypted-backup-actions">
+              <button type="button" id="exportEncryptedBtn" class="secondary-btn">Export encrypted backup</button>
+              <label class="secondary-btn file-btn">Import encrypted backup<input id="importEncryptedInput" type="file" accept="application/json,.json" hidden /></label>
+            </div>
+          </div>
+          <p class="hint">If you forget the password, the encrypted backup cannot be recovered.</p>
+        </section>
+
+        <section class="card sync-architecture-card">
+          <p class="kicker">Sync architecture</p>
+          <h3>Ready for a real backend</h3>
+          <p class="muted">The app now has a stable sync adapter boundary. We can connect Supabase, Firebase or another service next without changing the logging/database UI again.</p>
+          <div class="architecture-flow">
+            <span>IndexedDB</span><b>→</b><span>Sync adapter</span><b>→</b><span>Cloud provider</span>
+          </div>
+        </section>
+      </section>
+
+      <dialog id="syncConfigDialog">
+        <form method="dialog" class="dialog-card sync-dialog-card">
+          <p class="kicker">Cloud sync</p>
+          <h3>Provider setup required</h3>
+          <p>To make multi-device sync live, connect a backend provider. For a static GitHub Pages app, Supabase is a good fit because authentication and row-level security can be handled without putting a secret server key in the browser.</p>
+          <div class="sync-config-note">
+            <strong>V3 foundation is already installed.</strong>
+            <span>Next we only need your provider project URL and public client key.</span>
+          </div>
+          <div class="dialog-actions">
+            <button value="close" class="primary-btn">Got it</button>
+          </div>
+        </form>
+      </dialog>
+
+      <section id="screen-report" class="screen" aria-labelledby="reportTitle">
+        <div class="report-page-head">
+          <div>
+            <button type="button" class="text-btn report-back" data-nav="settings">← Settings</button>
+            <p class="kicker">Health summary</p>
+            <h2 id="reportTitle">Shareable report</h2>
+            <p class="muted">A clean summary of your own records for discussion with a healthcare professional. It is not a diagnosis.</p>
+          </div>
+          <div class="report-actions-top">
+            <div class="range-switcher" id="reportRange" aria-label="Report period">
+              <button type="button" data-report-days="7">7D</button>
+              <button type="button" data-report-days="30" class="active">30D</button>
+              <button type="button" data-report-days="90">90D</button>
+            </div>
+            <button type="button" id="printReportBtn" class="primary-btn">Print / Save PDF</button>
+          </div>
+        </div>
+
+        <div class="report-privacy-note">
+          <strong>Private until you choose to share it.</strong>
+          <span>The report is generated on this device from local data. Printing or saving it creates a copy outside Log My Log.</span>
+        </div>
+
+        <div id="healthReport" class="health-report"></div>
+      </section>
+
       <section id="screen-settings" class="screen" aria-labelledby="settingsTitle">
         <div>
           <p class="kicker">Your data</p>
           <h2 id="settingsTitle">Settings & backup</h2>
         </div>
         <div class="card settings-list">
+
+          <div class="setting-item featured-setting">
+            <div><h3>Account & sync</h3><p class="muted">Manage this device, encrypted backups and optional multi-device sync.</p></div>
+            <button type="button" id="openAccountBtn" class="primary-btn">Open account</button>
+          </div>
+
+          <div class="setting-item featured-setting">
+            <div><h3>Health summary report</h3><p class="muted">Create a clean 7, 30 or 90-day summary to print or save as PDF for a GP or other healthcare professional.</p></div>
+            <button type="button" id="openReportBtn" class="primary-btn">Create report</button>
+          </div>
           <div class="setting-item">
             <div><h3>Export JSON backup</h3><p class="muted">Best for restoring all your entries later.</p></div>
             <button id="exportJsonBtn" class="secondary-btn">Export JSON</button>
@@ -344,7 +473,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v2.3</span></h3>
+              <h3>Log My Log <span class="version-pill">v3.0</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -431,6 +560,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=2.3"></script>
+  <script type="module" src="app.js?v=3.0"></script>
 </body>
 </html>

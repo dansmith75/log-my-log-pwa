@@ -1,9 +1,9 @@
-const CACHE='log-my-log-v3.0.3';
+const CACHE='log-my-log-v3.1';
 const CORE=[
   './',
   './index.html',
-  './styles.css?v=3.0.3',
-  './app.js?v=3.0.3',
+  './styles.css?v=3.1',
+  './app.js?v=3.1',
   './db.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
@@ -30,6 +30,12 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
 
   const request=event.request;
+  const url=new URL(request.url);
+
+  // Never intercept Supabase, CDN, browser-extension, or other third-party traffic.
+  // Auth/API responses must not enter the app cache.
+  if(url.origin!==self.location.origin) return;
+
   const isNavigation=request.mode==='navigate';
 
   if(isNavigation){

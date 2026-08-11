@@ -414,3 +414,26 @@ dialog{border:0;border-radius:20px;padding:0;max-width:420px;width:calc(100% - 3
 .sync-config-note{display:grid;gap:4px;background:#edf4ee;border-radius:14px;padding:13px;margin-top:14px}.sync-config-note span{font-size:.82rem;color:var(--muted)}
 @media(max-width:800px){.account-grid{grid-template-columns:1fr}.encrypted-backup-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.encrypted-backup-actions{display:grid;grid-template-columns:1fr}.account-details>div{grid-template-columns:1fr;gap:3px}}
+
+
+/* ===== V3.1 live Supabase sync ===== */
+.auth-card{display:grid;gap:16px;background:linear-gradient(135deg,#fffdf7,#edf4ee)}
+.auth-fields{display:grid;gap:12px}
+.auth-actions{display:flex;gap:9px}
+.auth-actions>*{flex:1}
+.auth-error{color:#a3382f!important;font-weight:750}
+.signed-in-card{background:linear-gradient(135deg,#edf6ef,#fffdf7)}
+.cloud-connected-mark{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#dcefe2;color:#23643e;font-size:1.15rem;font-weight:1000}
+.sync-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:4px 0}
+.sync-metrics>div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.sync-metrics span{display:block;color:var(--muted);font-size:.72rem;font-weight:750}
+.sync-metrics strong{display:block;font-size:1.1rem;margin-top:3px}
+.sync-actions{display:flex;gap:9px}
+.sync-actions>*{flex:1}
+.small-copy{font-size:.82rem;line-height:1.5}
+#syncNowBtn:disabled{opacity:.6;cursor:wait}
+@media(max-width:620px){
+  .auth-actions,.sync-actions{display:grid;grid-template-columns:1fr}
+  .sync-metrics{grid-template-columns:1fr 1fr}
+  .sync-metrics>div:last-child{grid-column:1/-1}
+}

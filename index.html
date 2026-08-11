@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=3.0.3" />
+  <link rel="stylesheet" href="styles.css?v=3.1" />
   <title>Log My Log</title>
 </head>
 <body>
@@ -320,36 +320,98 @@
 
 
       <section id="screen-account" class="screen" aria-labelledby="accountTitle">
-        <div class="section-head">
-          <div><p class="kicker">V3</p><h2 id="accountTitle">Account & sync</h2><p class="muted">Local-first by default. Cloud sync is optional.</p></div>
+        <div class="section-head account-title-row">
+          <div>
+            <p class="kicker">V3.1</p>
+            <h2 id="accountTitle">Account & sync</h2>
+            <p class="muted">Your logs still work locally. Signing in adds private multi-device sync.</p>
+          </div>
           <span class="sync-status-pill local" id="syncStatusPill">Local only</span>
         </div>
 
-        <div class="account-grid">
-          <section class="card account-card">
-            <div class="account-card-head"><div><p class="kicker">This device</p><h3>Device identity</h3></div><span class="device-dot"></span></div>
-            <dl class="account-details">
-              <div><dt>Device name</dt><dd id="deviceNameLabel">This device</dd></div>
-              <div><dt>Device ID</dt><dd><code id="deviceIdLabel">—</code></dd></div>
-              <div><dt>Storage</dt><dd>Local IndexedDB</dd></div>
-            </dl>
-            <label>Rename device<input id="deviceNameInput" type="text" maxlength="40" placeholder="e.g. Dan's phone" /></label>
-            <button type="button" id="saveDeviceNameBtn" class="secondary-btn">Save device name</button>
-          </section>
+        <div id="authSignedOut">
+          <div class="account-grid">
+            <section class="card auth-card">
+              <p class="kicker">Optional account</p>
+              <h3>Sign in</h3>
+              <p class="muted">Use the same account on another device to bring your logs with you.</p>
+              <div class="auth-fields">
+                <label>Email
+                  <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+                </label>
+                <label>Password
+                  <input id="authPassword" type="password" minlength="8" autocomplete="current-password" placeholder="At least 8 characters" />
+                </label>
+              </div>
+              <div class="auth-actions">
+                <button type="button" id="signInBtn" class="primary-btn">Sign in</button>
+                <button type="button" id="signUpBtn" class="secondary-btn">Create account</button>
+              </div>
+              <p class="hint" id="authMessage">Creating an account never removes the logs already stored on this device.</p>
+            </section>
 
-          <section class="card account-card">
-            <div class="account-card-head"><div><p class="kicker">Optional</p><h3>Cloud sync</h3></div></div>
-            <p class="muted">This build is ready for sync, but no cloud provider is configured yet.</p>
-            <div class="sync-provider-box"><strong id="syncProviderName">No provider configured</strong><span id="syncProviderHint">Your logs remain only on this device.</span></div>
-            <button type="button" id="configureSyncBtn" class="primary-btn">Configure sync</button>
-          </section>
+            <section class="card account-card">
+              <div class="account-card-head">
+                <div><p class="kicker">This device</p><h3>Still local-first</h3></div>
+                <span class="device-dot"></span>
+              </div>
+              <dl class="account-details">
+                <div><dt>Device name</dt><dd id="deviceNameLabel">This device</dd></div>
+                <div><dt>Device ID</dt><dd><code id="deviceIdLabel">—</code></dd></div>
+                <div><dt>Local logs</dt><dd id="signedOutLocalCount">0</dd></div>
+              </dl>
+              <label>Rename device
+                <input id="deviceNameInput" type="text" maxlength="40" placeholder="e.g. Dan's phone" />
+              </label>
+              <button type="button" id="saveDeviceNameBtn" class="secondary-btn">Save device name</button>
+            </section>
+          </div>
+        </div>
+
+        <div id="authSignedIn" hidden>
+          <div class="account-grid">
+            <section class="card signed-in-card">
+              <div class="account-card-head">
+                <div>
+                  <p class="kicker">Signed in</p>
+                  <h3 id="accountEmail">—</h3>
+                </div>
+                <span class="cloud-connected-mark">✓</span>
+              </div>
+              <div class="sync-metrics">
+                <div><span>Local logs</span><strong id="localLogCount">0</strong></div>
+                <div><span>Cloud logs</span><strong id="cloudLogCount">—</strong></div>
+                <div><span>Last sync</span><strong id="lastSyncLabel">Never</strong></div>
+              </div>
+              <div class="sync-actions">
+                <button type="button" id="syncNowBtn" class="primary-btn">Sync now</button>
+                <button type="button" id="signOutBtn" class="secondary-btn">Sign out</button>
+              </div>
+              <p class="hint" id="syncMessage">Local IndexedDB remains available offline. Sync merges your account data when you're online.</p>
+            </section>
+
+            <section class="card account-card">
+              <div class="account-card-head">
+                <div><p class="kicker">This device</p><h3 id="signedInDeviceName">This device</h3></div>
+                <span class="device-dot"></span>
+              </div>
+              <dl class="account-details">
+                <div><dt>Device ID</dt><dd><code id="signedInDeviceId">—</code></dd></div>
+                <div><dt>Local storage</dt><dd>IndexedDB</dd></div>
+                <div><dt>Cloud</dt><dd>Supabase + RLS</dd></div>
+              </dl>
+              <p class="muted small-copy">Only rows belonging to your authenticated user ID can be accessed through the cloud API.</p>
+            </section>
+          </div>
         </div>
 
         <section class="card">
           <div class="section-head"><div><p class="kicker">Portable privacy</p><h3>Encrypted backup</h3></div></div>
-          <p class="muted">Create a password-protected backup you can move between devices. Encryption happens in your browser.</p>
+          <p class="muted">Cloud sync is optional. You can still create a password-protected backup to keep independently.</p>
           <div class="encrypted-backup-grid">
-            <label>Backup password<input id="backupPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" /></label>
+            <label>Backup password
+              <input id="backupPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+            </label>
             <div class="encrypted-backup-actions">
               <button type="button" id="exportEncryptedBtn" class="secondary-btn">Export encrypted backup</button>
               <label class="secondary-btn file-btn">Import encrypted backup<input id="importEncryptedInput" type="file" accept="application/json,.json" hidden /></label>
@@ -359,20 +421,12 @@
         </section>
 
         <section class="card sync-architecture-card">
-          <p class="kicker">Sync architecture</p><h3>Ready for a real backend</h3>
-          <p class="muted">The app now has a stable sync boundary. A real provider can be connected next without changing the logging UI.</p>
-          <div class="architecture-flow"><span>IndexedDB</span><b>→</b><span>Sync adapter</span><b>→</b><span>Cloud provider</span></div>
+          <p class="kicker">How sync works</p>
+          <h3>Local first, cloud second</h3>
+          <div class="architecture-flow"><span>IndexedDB</span><b>↔</b><span>Secure sync</span><b>↔</b><span>Supabase</span></div>
+          <p class="muted small-copy">The local database remains the app's offline store. Sync uploads and downloads account-owned rows using their existing UUIDs.</p>
         </section>
       </section>
-
-      <dialog id="syncConfigDialog">
-        <form method="dialog" class="dialog-card sync-dialog-card">
-          <p class="kicker">Cloud sync</p><h3>Provider setup required</h3>
-          <p>Multi-device sync needs a backend provider. Supabase is a good fit for this static PWA because authentication and row-level security can be used without putting a server secret in the browser.</p>
-          <div class="sync-config-note"><strong>V3 foundation is installed.</strong><span>Next we connect a provider project URL and public client key.</span></div>
-          <div class="dialog-actions"><button value="close" class="primary-btn">Got it</button></div>
-        </form>
-      </dialog>
 
       <section id="screen-report" class="screen" aria-labelledby="reportTitle">
         <div class="report-page-head">
@@ -436,7 +490,7 @@
           <div class="section-head">
             <div>
               <p class="kicker">App</p>
-              <h3>Log My Log <span class="version-pill">v3.0.3</span></h3>
+              <h3>Log My Log <span class="version-pill">v3.1</span></h3>
             </div>
             <span id="connectionStatus" class="connection-status">Online</span>
           </div>
@@ -523,6 +577,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=3.0.3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="app.js?v=3.1"></script>
 </body>
 </html>

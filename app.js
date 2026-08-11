@@ -2,10 +2,15 @@ import { getEntries, saveEntry, deleteEntry, clearEntries, bulkSave } from './db
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const APP_VERSION = '3.0.3';
+const APP_VERSION = '3.1.0';
 const ONBOARDING_KEY = 'log-my-log-onboarding-v2.1';
 const ACHIEVEMENT_KEY = 'log-my-log-achievements-v2.4';
-const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30 };
+const SUPABASE_URL = 'https://tltorblqdurqhtjcojti.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_J89f4SkcT-LNmv1KG-cfjQ_B5v9rbmS';
+const CLOUD_LAST_SYNC_KEY = 'log-my-log-cloud-last-sync';
+const CLOUD_LAST_USER_KEY = 'log-my-log-cloud-last-user';
+const CLOUD_DELETE_QUEUE_KEY = 'log-my-log-cloud-delete-queue';
+const state = { entries: [], selectedType: 4, deferredPrompt: null, swRegistration: null, pendingAchievement: null, statsDays: 30, reportDays: 30, cloudUser: null, cloudBusy: false, cloudCount: null };
 
 const bristolInfo = {
   1:{name:'Hard pellets', short:'Pebble dash', desc:'Separate hard lumps'},
@@ -530,8 +535,12 @@ function editEntry(id){
 }
 
 async function removeEntry(id){
-  if(!await confirmAction('Delete this log?','This entry will be removed from this device.'))return;
+  if(!await confirmAction('Delete this log?','This entry will be removed from this device and from your signed-in cloud account on the next sync.'))return;
+  queueCloudDeletion(id);
   await deleteEntry(id); await refresh(); toast('Log deleted');
+  if(state.cloudUser&&navigator.onLine){
+    flushCloudDeletions().then(()=>refreshCloudCount()).catch(err=>console.error('Cloud delete pending',err));
+  }
 }
 async function refresh(){ state.entries=await getEntries(); renderHome(); renderHistory(); renderStats(); }
 
@@ -567,6 +576,7 @@ $('#logForm').addEventListener('submit',async ev=>{
   const wasEditing=Boolean($('#entryId').value);
   const beforeEntries=[...state.entries];
   await saveEntry(entry); await refresh();
+  pushOneQuietly(entry);
   if(!wasEditing) state.pendingAchievement=newlyUnlocked(beforeEntries,state.entries)[0]||null;
   resetForm(); showSaveSuccess(entry,wasEditing);
 });
@@ -611,21 +621,26 @@ $('#printReportBtn').onclick=printHealthReport;
 $('#exportJsonBtn').onclick=()=>downloadFile(`log-my-log-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({app:'Log My Log',version:APP_VERSION,exportedAt:new Date().toISOString(),entries:state.entries},null,2),'application/json');
 $('#exportCsvBtn').onclick=()=>{ const cols=['id','date','time','bristolType','ease','urgency','colour','duration','location','notes','tags']; const esc=v=>`"${String(v??'').replaceAll('"','""')}"`; const rows=state.entries.map(e=>cols.map(c=>esc(c==='tags'?(e.tags||[]).join('|'):e[c])).join(',')); downloadFile(`log-my-log-${new Date().toISOString().slice(0,10)}.csv`,[cols.join(','),...rows].join('\n'),'text/csv'); };
 $('#importJsonInput').onchange=async ev=>{ const file=ev.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());const entries=Array.isArray(data)?data:data.entries;if(!Array.isArray(entries))throw new Error();const valid=entries.filter(e=>e&&e.id&&e.timestamp&&Number(e.bristolType)>=1&&Number(e.bristolType)<=7);await bulkSave(valid);await refresh();toast(`Imported ${valid.length} entries`);}catch{toast('That backup file is not valid.');}finally{ev.target.value='';} };
-$('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup.'))return; await clearEntries(); await refresh(); toast('All local data deleted'); };
+$('#deleteAllBtn').onclick=async()=>{ if(!await confirmAction('Delete every log?','This cannot be undone unless you have a backup. If signed in, these logs will also be removed from your cloud account on the next sync.'))return; state.entries.forEach(e=>queueCloudDeletion(e.id)); await clearEntries(); await refresh(); if(state.cloudUser&&navigator.onLine)flushCloudDeletions().then(()=>refreshCloudCount()).catch(console.error); toast('All local data deleted'); };
 
 
-// ===== V3 account, device identity and encrypted backups =====
+// ===== V3.1 Supabase account, sync, device identity and encrypted backups =====
 const V3_KEYS={
   deviceId:'log-my-log-device-id',
   deviceName:'log-my-log-device-name'
 };
+
+const supabaseClient = globalThis.supabase?.createClient
+  ? globalThis.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+    })
+  : null;
 
 function makeDeviceId(){
   return globalThis.crypto?.randomUUID
     ? crypto.randomUUID()
     : `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
 }
-
 function ensureDeviceIdentity(){
   let id=localStorage.getItem(V3_KEYS.deviceId);
   if(!id){ id=makeDeviceId(); localStorage.setItem(V3_KEYS.deviceId,id); }
@@ -633,97 +648,351 @@ function ensureDeviceIdentity(){
   if(!name){ name='This device'; localStorage.setItem(V3_KEYS.deviceName,name); }
   return {id,name};
 }
-
-function renderAccount(){
-  const device=ensureDeviceIdentity();
-  if($('#deviceIdLabel')) $('#deviceIdLabel').textContent=device.id;
-  if($('#deviceNameLabel')) $('#deviceNameLabel').textContent=device.name;
-  if($('#deviceNameInput')) $('#deviceNameInput').value=device.name;
-}
-
 function saveDeviceName(){
-  const value=$('#deviceNameInput')?.value.trim();
+  const input=$('#deviceNameInput');
+  const value=input?.value.trim();
   if(!value){ toast('Enter a device name'); return; }
   localStorage.setItem(V3_KEYS.deviceName,value);
   renderAccount();
   toast('Device name saved');
 }
+function setAuthMessage(message,isError=false){
+  const el=$('#authMessage'); if(!el)return;
+  el.textContent=message;
+  el.classList.toggle('auth-error',isError);
+}
+function setSyncMessage(message,isError=false){
+  const el=$('#syncMessage'); if(!el)return;
+  el.textContent=message;
+  el.classList.toggle('auth-error',isError);
+}
+function formatLastSync(){
+  const raw=localStorage.getItem(CLOUD_LAST_SYNC_KEY);
+  if(!raw)return 'Never';
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime()))return 'Never';
+  const mins=Math.round((Date.now()-d.getTime())/60000);
+  if(mins<1)return 'Just now';
+  if(mins<60)return `${mins}m ago`;
+  if(mins<1440)return `${Math.round(mins/60)}h ago`;
+  return new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short'}).format(d);
+}
+function renderAccount(){
+  const device=ensureDeviceIdentity();
+  const signedIn=Boolean(state.cloudUser);
+  $('#authSignedOut').hidden=signedIn;
+  $('#authSignedIn').hidden=!signedIn;
+
+  if($('#deviceIdLabel')) $('#deviceIdLabel').textContent=device.id;
+  if($('#deviceNameLabel')) $('#deviceNameLabel').textContent=device.name;
+  if($('#deviceNameInput')) $('#deviceNameInput').value=device.name;
+  if($('#signedOutLocalCount')) $('#signedOutLocalCount').textContent=state.entries.length;
+
+  const pill=$('#syncStatusPill');
+  if(signedIn){
+    pill.textContent=navigator.onLine?'Cloud connected':'Signed in · offline';
+    pill.className=`sync-status-pill ${navigator.onLine?'ready':'local'}`;
+    $('#accountEmail').textContent=state.cloudUser.email||'Signed-in account';
+    $('#localLogCount').textContent=state.entries.length;
+    $('#cloudLogCount').textContent=state.cloudCount===null?'—':state.cloudCount;
+    $('#lastSyncLabel').textContent=formatLastSync();
+    $('#signedInDeviceName').textContent=device.name;
+    $('#signedInDeviceId').textContent=device.id;
+  }else{
+    pill.textContent='Local only';
+    pill.className='sync-status-pill local';
+  }
+}
+async function initialiseCloudAuth(){
+  if(!supabaseClient){
+    console.error('Supabase client library did not load');
+    setAuthMessage('Cloud library is unavailable. Local logging still works.',true);
+    return;
+  }
+  try{
+    const {data,error}=await supabaseClient.auth.getSession();
+    if(error)throw error;
+    state.cloudUser=data.session?.user||null;
+    if(state.cloudUser)localStorage.setItem(CLOUD_LAST_USER_KEY,state.cloudUser.id);
+    renderAccount();
+    if(state.cloudUser&&navigator.onLine) refreshCloudCount();
+  }catch(err){
+    console.error(err);
+    setAuthMessage('Could not initialise cloud sign-in. Local logging still works.',true);
+  }
+  supabaseClient.auth.onAuthStateChange((event,session)=>{
+    state.cloudUser=session?.user||null;
+    if(state.cloudUser)localStorage.setItem(CLOUD_LAST_USER_KEY,state.cloudUser.id);
+    state.cloudCount=null;
+    setTimeout(()=>{
+      renderAccount();
+      if(state.cloudUser&&navigator.onLine) refreshCloudCount();
+    },0);
+  });
+}
+async function signUpCloud(){
+  if(!supabaseClient)return setAuthMessage('Cloud library is unavailable.',true);
+  const email=$('#authEmail')?.value.trim();
+  const password=$('#authPassword')?.value||'';
+  if(!email)return setAuthMessage('Enter your email address.',true);
+  if(password.length<8)return setAuthMessage('Use a password of at least 8 characters.',true);
+  setAuthMessage('Creating your account…');
+  try{
+    const redirectTo=`${location.origin}${location.pathname}`;
+    const {data,error}=await supabaseClient.auth.signUp({
+      email,password,options:{emailRedirectTo:redirectTo}
+    });
+    if(error)throw error;
+    if(data.session){
+      state.cloudUser=data.user;
+      renderAccount();
+      setSyncMessage('Account created. Your local logs have not been uploaded yet.');
+    }else{
+      setAuthMessage('Check your email to confirm the account, then return here and sign in.');
+    }
+  }catch(err){
+    console.error(err);
+    setAuthMessage(err.message||'Could not create account.',true);
+  }
+}
+async function signInCloud(){
+  if(!supabaseClient)return setAuthMessage('Cloud library is unavailable.',true);
+  const email=$('#authEmail')?.value.trim();
+  const password=$('#authPassword')?.value||'';
+  if(!email||!password)return setAuthMessage('Enter your email and password.',true);
+  setAuthMessage('Signing in…');
+  try{
+    const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
+    if(error)throw error;
+    state.cloudUser=data.user;
+    localStorage.setItem(CLOUD_LAST_USER_KEY,data.user.id);
+    setAuthMessage('');
+    renderAccount();
+    await refreshCloudCount();
+    setSyncMessage(state.entries.length
+      ? `${state.entries.length} local log${state.entries.length===1?'':'s'} ready to merge. Tap Sync now when you're ready.`
+      : 'Signed in. Tap Sync now to download your cloud history.');
+  }catch(err){
+    console.error(err);
+    setAuthMessage(err.message||'Could not sign in.',true);
+  }
+}
+async function signOutCloud(){
+  if(!supabaseClient)return;
+  try{
+    const {error}=await supabaseClient.auth.signOut();
+    if(error)throw error;
+    state.cloudUser=null;
+    state.cloudCount=null;
+    renderAccount();
+    toast('Signed out — local logs remain on this device');
+  }catch(err){
+    console.error(err); toast('Could not sign out');
+  }
+}
+function localToCloud(entry,userId){
+  return {
+    id:entry.id,
+    user_id:userId,
+    timestamp:entry.timestamp,
+    bristol_type:Number(entry.bristolType),
+    ease:entry.ease||null,
+    urgency:entry.urgency||null,
+    colour:entry.colour||null,
+    duration:entry.duration===null||entry.duration===''?null:Number(entry.duration),
+    location:entry.location||null,
+    notes:entry.notes||null,
+    tags:Array.isArray(entry.tags)?entry.tags:[],
+    updated_at:entry.updatedAt||entry.timestamp||new Date().toISOString(),
+    deleted_at:null
+  };
+}
+function cloudToLocal(row){
+  const d=new Date(row.timestamp);
+  const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const time=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return {
+    id:row.id,date,time,timestamp:row.timestamp,
+    bristolType:Number(row.bristol_type),
+    ease:row.ease||'',urgency:row.urgency||'',colour:row.colour||'Brown',
+    duration:row.duration===null?null:Number(row.duration),
+    location:row.location||'',notes:row.notes||'',tags:Array.isArray(row.tags)?row.tags:[],
+    updatedAt:row.updated_at||row.timestamp
+  };
+}
+async function fetchAllCloudLogs(){
+  if(!supabaseClient||!state.cloudUser)return [];
+  const rows=[];
+  const pageSize=1000;
+  for(let from=0;;from+=pageSize){
+    const {data,error}=await supabaseClient.from('logs')
+      .select('*')
+      .is('deleted_at',null)
+      .order('timestamp',{ascending:false})
+      .range(from,from+pageSize-1);
+    if(error)throw error;
+    rows.push(...(data||[]));
+    if(!data||data.length<pageSize)break;
+  }
+  return rows;
+}
+async function refreshCloudCount(){
+  if(!supabaseClient||!state.cloudUser||!navigator.onLine)return;
+  try{
+    const {count,error}=await supabaseClient.from('logs')
+      .select('id',{count:'exact',head:true})
+      .is('deleted_at',null);
+    if(error)throw error;
+    state.cloudCount=count??0;
+    renderAccount();
+  }catch(err){
+    console.error(err);
+    state.cloudCount=null;
+    renderAccount();
+  }
+}
+function deleteQueue(){
+  try{return JSON.parse(localStorage.getItem(CLOUD_DELETE_QUEUE_KEY)||'[]')}catch{return []}
+}
+function saveDeleteQueue(items){
+  localStorage.setItem(CLOUD_DELETE_QUEUE_KEY,JSON.stringify(items));
+}
+function queueCloudDeletion(id){
+  const owner=state.cloudUser?.id||localStorage.getItem(CLOUD_LAST_USER_KEY);
+  if(!owner)return;
+  const q=deleteQueue();
+  if(!q.some(x=>x.id===id&&x.userId===owner))q.push({id,userId:owner,queuedAt:new Date().toISOString()});
+  saveDeleteQueue(q);
+}
+async function flushCloudDeletions(){
+  if(!supabaseClient||!state.cloudUser||!navigator.onLine)return;
+  const q=deleteQueue();
+  const mine=q.filter(x=>x.userId===state.cloudUser.id);
+  if(!mine.length)return;
+  const ids=mine.map(x=>x.id);
+  const {error}=await supabaseClient.from('logs').delete().in('id',ids);
+  if(error)throw error;
+  saveDeleteQueue(q.filter(x=>x.userId!==state.cloudUser.id||!ids.includes(x.id)));
+}
+async function pushEntriesToCloud(entries){
+  if(!supabaseClient||!state.cloudUser||!entries.length)return;
+  const rows=entries.map(e=>localToCloud(e,state.cloudUser.id));
+  const {error}=await supabaseClient.from('logs').upsert(rows,{onConflict:'id'});
+  if(error)throw error;
+}
+async function pushOneQuietly(entry){
+  if(!state.cloudUser||!navigator.onLine)return;
+  try{
+    await pushEntriesToCloud([entry]);
+    localStorage.setItem(CLOUD_LAST_SYNC_KEY,new Date().toISOString());
+    refreshCloudCount();
+  }catch(err){
+    console.error('Background cloud push failed',err);
+  }
+}
+async function syncNow(){
+  if(state.cloudBusy)return;
+  if(!state.cloudUser)return toast('Sign in first');
+  if(!navigator.onLine)return toast('You are offline — local logging still works');
+  state.cloudBusy=true;
+  $('#syncNowBtn').disabled=true;
+  setSyncMessage('Syncing…');
+  try{
+    await flushCloudDeletions();
+    const cloudRows=await fetchAllCloudLogs();
+    const cloudById=new Map(cloudRows.map(r=>[r.id,r]));
+    const localById=new Map(state.entries.map(e=>[e.id,e]));
+    const toUpload=[];
+    const toDownload=[];
+
+    for(const local of state.entries){
+      const cloud=cloudById.get(local.id);
+      if(!cloud){ toUpload.push(local); continue; }
+      const localTime=new Date(local.updatedAt||local.timestamp).getTime();
+      const cloudTime=new Date(cloud.updated_at||cloud.timestamp).getTime();
+      if(localTime>cloudTime+500)toUpload.push(local);
+      else if(cloudTime>localTime+500)toDownload.push(cloudToLocal(cloud));
+    }
+    for(const cloud of cloudRows){
+      if(!localById.has(cloud.id))toDownload.push(cloudToLocal(cloud));
+    }
+
+    if(toUpload.length)await pushEntriesToCloud(toUpload);
+    if(toDownload.length)await bulkSave(toDownload);
+    await refresh();
+
+    const finalCloud=await fetchAllCloudLogs();
+    state.cloudCount=finalCloud.length;
+    localStorage.setItem(CLOUD_LAST_SYNC_KEY,new Date().toISOString());
+    renderAccount();
+    setSyncMessage(`Synced. ${toUpload.length} uploaded · ${toDownload.length} downloaded · ${state.entries.length} local.`);
+    toast('Cloud sync complete');
+  }catch(err){
+    console.error(err);
+    setSyncMessage(err.message||'Sync failed. Your local logs are unchanged.',true);
+    toast('Cloud sync failed — local logs are safe');
+  }finally{
+    state.cloudBusy=false;
+    if($('#syncNowBtn'))$('#syncNowBtn').disabled=false;
+  }
+}
 
 function bytesToB64(bytes){
-  let binary='';
-  bytes.forEach(b=>binary+=String.fromCharCode(b));
-  return btoa(binary);
+  let binary=''; bytes.forEach(b=>binary+=String.fromCharCode(b)); return btoa(binary);
 }
 function b64ToBytes(value){
-  const binary=atob(value);
-  return Uint8Array.from(binary,c=>c.charCodeAt(0));
+  const binary=atob(value); return Uint8Array.from(binary,c=>c.charCodeAt(0));
 }
 async function deriveBackupKey(password,salt){
   const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),{name:'PBKDF2'},false,['deriveKey']);
   return crypto.subtle.deriveKey(
     {name:'PBKDF2',salt,iterations:250000,hash:'SHA-256'},
-    material,
-    {name:'AES-GCM',length:256},
-    false,
-    ['encrypt','decrypt']
+    material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
   );
 }
 async function exportEncryptedBackup(){
   const password=$('#backupPassword')?.value||'';
-  if(password.length<8){ toast('Use a password of at least 8 characters'); return; }
+  if(password.length<8){toast('Use a password of at least 8 characters');return;}
   try{
     const salt=crypto.getRandomValues(new Uint8Array(16));
     const iv=crypto.getRandomValues(new Uint8Array(12));
     const key=await deriveBackupKey(password,salt);
     const plain=new TextEncoder().encode(JSON.stringify({
-      format:'log-my-log-encrypted-backup',
-      version:1,
-      exportedAt:new Date().toISOString(),
-      entries:state.entries
+      format:'log-my-log-encrypted-backup',version:1,
+      exportedAt:new Date().toISOString(),entries:state.entries
     }));
     const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain);
-    const payload={
-      format:'log-my-log-encrypted',
-      version:1,
-      salt:bytesToB64(salt),
-      iv:bytesToB64(iv),
-      data:bytesToB64(new Uint8Array(encrypted))
-    };
+    const payload={format:'log-my-log-encrypted',version:1,salt:bytesToB64(salt),iv:bytesToB64(iv),data:bytesToB64(new Uint8Array(encrypted))};
     downloadFile(`log-my-log-encrypted-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(payload,null,2),'application/json');
     toast('Encrypted backup exported');
-  }catch(err){
-    console.error(err); toast('Could not create encrypted backup');
-  }
+  }catch(err){console.error(err);toast('Could not create encrypted backup');}
 }
 async function importEncryptedBackup(file){
   const password=$('#backupPassword')?.value||'';
-  if(password.length<8){ toast('Enter the backup password first'); return; }
+  if(password.length<8){toast('Enter the backup password first');return;}
   try{
     const parsed=JSON.parse(await file.text());
-    if(parsed.format!=='log-my-log-encrypted') throw new Error('Wrong backup format');
-    const salt=b64ToBytes(parsed.salt), iv=b64ToBytes(parsed.iv), data=b64ToBytes(parsed.data);
+    if(parsed.format!=='log-my-log-encrypted')throw new Error('Wrong backup format');
+    const salt=b64ToBytes(parsed.salt),iv=b64ToBytes(parsed.iv),data=b64ToBytes(parsed.data);
     const key=await deriveBackupKey(password,salt);
     const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,data);
     const payload=JSON.parse(new TextDecoder().decode(plain));
-    if(!Array.isArray(payload.entries)) throw new Error('No entries');
-    await bulkSave(payload.entries);
-    await refresh();
+    if(!Array.isArray(payload.entries))throw new Error('No entries');
+    await bulkSave(payload.entries); await refresh();
     toast(`Imported ${payload.entries.length} entries`);
-  }catch(err){
-    console.error(err); toast('Could not decrypt backup — check the password');
-  }finally{
-    if($('#importEncryptedInput')) $('#importEncryptedInput').value='';
-  }
+  }catch(err){console.error(err);toast('Could not decrypt backup — check the password');}
+  finally{if($('#importEncryptedInput'))$('#importEncryptedInput').value='';}
 }
-
 function bindV3AccountEvents(){
   $('#openAccountBtn')?.addEventListener('click',()=>showScreen('account'));
   $('#saveDeviceNameBtn')?.addEventListener('click',saveDeviceName);
-  $('#configureSyncBtn')?.addEventListener('click',()=>$('#syncConfigDialog')?.showModal());
+  $('#signInBtn')?.addEventListener('click',signInCloud);
+  $('#signUpBtn')?.addEventListener('click',signUpCloud);
+  $('#signOutBtn')?.addEventListener('click',signOutCloud);
+  $('#syncNowBtn')?.addEventListener('click',syncNow);
   $('#exportEncryptedBtn')?.addEventListener('click',exportEncryptedBackup);
   $('#importEncryptedInput')?.addEventListener('change',e=>{
-    const file=e.target.files?.[0];
-    if(file) importEncryptedBackup(file);
+    const file=e.target.files?.[0]; if(file)importEncryptedBackup(file);
   });
 }
 
@@ -789,7 +1058,7 @@ async function registerServiceWorker(){
     return;
   }
   try{
-    const reg=await navigator.serviceWorker.register('./sw.js?v=3.0.3');
+    const reg=await navigator.serviceWorker.register('./sw.js?v=3.1');
     state.swRegistration=reg;
     if(reg.waiting && navigator.serviceWorker.controller) showUpdateReady(reg);
     reg.addEventListener('updatefound',()=>{
@@ -820,8 +1089,8 @@ window.addEventListener('appinstalled',()=>{
   toast('Log My Log installed');
 });
 window.matchMedia('(display-mode: standalone)').addEventListener?.('change',syncInstallUI);
-window.addEventListener('online',()=>{ updateConnectionUI(); toast('Back online'); });
-window.addEventListener('offline',()=>{ updateConnectionUI(); toast('Offline mode — your logs still save locally'); });
+window.addEventListener('online',()=>{ updateConnectionUI(); renderAccount(); if(state.cloudUser)refreshCloudCount(); toast('Back online'); });
+window.addEventListener('offline',()=>{ updateConnectionUI(); renderAccount(); toast('Offline mode — your logs still save locally'); });
 
 $('#installBtn').onclick=promptInstall;
 $('#settingsInstallBtn').onclick=promptInstall;
@@ -860,6 +1129,7 @@ navigator.serviceWorker?.addEventListener('controllerchange',()=>{
 
 bindV3AccountEvents();
 ensureDeviceIdentity();
+initialiseCloudAuth();
 updateConnectionUI();
 syncInstallUI();
 resetForm();

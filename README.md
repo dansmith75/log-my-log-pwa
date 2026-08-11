@@ -1,3 +1,26 @@
+# Log My Log v3.1
+
+V3.1 connects the local-first PWA to Supabase.
+
+## Live cloud features
+- Email/password sign-up with email confirmation
+- Persistent Supabase browser session
+- Sign in / sign out
+- Manual two-way sync
+- Existing local logs merge into the signed-in account; they are not removed from IndexedDB
+- UUIDs are preserved across devices
+- New/edited logs are pushed quietly when online and signed in
+- Cloud deletions are queued when necessary and flushed on sync
+- Cloud rows are protected by the project's Row Level Security policies
+- Local logging continues to work while signed out or offline
+- Existing encrypted backup/export features remain available
+
+## Security
+The PWA contains only the Supabase Project URL and publishable client key. It contains no database password, secret key, or service-role key. The service worker deliberately bypasses all third-party requests so Supabase Auth/Data API responses are never cached by the PWA cache.
+
+## Sync conflict rule
+For an entry with the same UUID locally and in Supabase, the newer `updatedAt` / `updated_at` version wins. Rows existing on only one side are copied to the other side.
+
 # Log My Log v3.0.3
 
 Hotfix: encrypted backup export now uses the app's existing downloadFile helper correctly. Encrypted import continues to merge entries through the existing IndexedDB bulkSave path.
